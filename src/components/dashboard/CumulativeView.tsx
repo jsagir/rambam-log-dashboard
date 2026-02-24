@@ -6,6 +6,7 @@
 import React, { useMemo } from 'react';
 import { StatCard } from '@/components/shared/StatCard';
 import { SectionTitle } from '@/components/shared/SectionTitle';
+import { TopicStream } from './TopicStream';
 import { Activity, Clock, Users, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -205,6 +206,17 @@ export function CumulativeView({ data }: CumulativeViewProps) {
           </div>
         </div>
       )}
+
+      {/* Topic Stream - ThemeRiver visualization */}
+      <div>
+        <SectionTitle
+          title="Topic Stream: What Visitors Think About"
+          subtitle="Flowing patterns reveal which topics are growing, declining, or seasonal"
+        />
+        <div className="bg-card border border-border rounded-lg p-5">
+          <TopicStream data={data} />
+        </div>
+      </div>
 
       {/* Topic Distribution + Question Types side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
