@@ -81,12 +81,16 @@ def interaction_to_dashboard_format(interaction, log_date, session_id, interacti
     is_greeting = interaction.get("is_greeting", False)
 
     # Build interaction object (with placeholders for Gemini classification)
+    # Clean answer: replace newlines with spaces to avoid TypeScript syntax errors
+    clean_answer = answer_text.replace('\n', ' ').replace('\r', ' ') if answer_text else ""
+    clean_answer = clean_answer[:500]  # Truncate long answers
+
     return {
         "id": interaction_id,
         "time": time_str,
         "session": session_id,
         "question": question,
-        "answer": answer_text[:500] if answer_text else "",  # Truncate long answers
+        "answer": clean_answer,
         "lang": lang,
         "type": question_type,
         "topic": "Uncategorized",  # Will classify later if needed

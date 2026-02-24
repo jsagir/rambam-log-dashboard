@@ -23,23 +23,15 @@ dashboard_file = 'src/app/simple-dashboard/page.tsx'
 with open(dashboard_file, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# Convert to TypeScript format
+# Convert to TypeScript format using JSON encoding (handles all escaping correctly)
 def to_ts_value(v):
     if v is None:
         return 'null'
     elif isinstance(v, bool):
         return 'true' if v else 'false'
-    elif isinstance(v, str):
-        # Escape quotes and backslashes
-        escaped = v.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
-        return f'"{escaped}"'
-    elif isinstance(v, list):
-        if len(v) == 0:
-            return '[]'
-        items = ', '.join([to_ts_value(item) for item in v])
-        return f'[{items}]'
     else:
-        return str(v)
+        # Use json.dumps for reliable escaping of strings, arrays, etc.
+        return json.dumps(v, ensure_ascii=False)
 
 # Build interactions array
 interactions_ts = "const INTERACTIONS = [\n"

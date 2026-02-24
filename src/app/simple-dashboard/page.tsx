@@ -1306,12 +1306,7 @@ const INTERACTIONS = [
     time: "13:39",
     session: 1,
     question: "Give us five key takeaways from the Torah.",
-    answer: "Here are five key takeaways from the Torah:  
-1. The unity of God and the rejection of idolatry are the foundation of faith.  
-2. The Torah commands ethical behavior, justice, and compassion toward others.  
-3. Study and pursuit of wisdom are central duties for every person.  
-4. The mitzvot (commandments) guide us to cultivate virtue and establish a just society.  
-5. Repentance and self-improvement are always possible, allowing us to return to the path of righteousness.",
+    answer: "Here are five key takeaways from the Torah:   1. The unity of God and the rejection of idolatry are the foundation of faith.   2. The Torah commands ethical behavior, justice, and compassion toward others.   3. Study and pursuit of wisdom are central duties for every person.   4. The mitzvot (commandments) guide us to cultivate virtue and establish a just society.   5. Repentance and self-improvement are always possible, allowing us to return to the path of righteousness.",
     lang: "en-US",
     type: "Closed questions",
     topic: "Uncategorized",
@@ -3670,7 +3665,7 @@ export default function RambamDashboard() {
     const issues: any[] = [];
     // From current day
     INTERACTIONS.filter(i => i.anomalies.length > 0).forEach(i => {
-      i.anomalies.forEach(a => {
+      i.anomalies.forEach((a: string) => {
         issues.push({ date:"Feb 22", id:i.id, type:a, question:i.question.slice(0,60)+"…", severity: a.includes("SPIKE") ? "warning" : "critical", latency:i.latency });
       });
     });
