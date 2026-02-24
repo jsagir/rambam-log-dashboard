@@ -5,6 +5,7 @@ import { Upload, FileText, Activity, AlertCircle } from 'lucide-react';
 import type { ParsedLog, AnomalyReport, DashboardStats } from '@/types/rambam';
 import { getHealthStatus } from '@/lib/utils';
 import { TimelineChart } from '@/components/dashboard/TimelineChart';
+import { LogViewer } from '@/components/dashboard/LogViewer';
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
@@ -256,6 +257,14 @@ export default function Dashboard() {
               })}
             </div>
           </div>
+        )}
+
+        {/* Full Log Viewer */}
+        {parsedLog?.interactions && parsedLog.interactions.length > 0 && (
+          <LogViewer
+            interactions={parsedLog.interactions}
+            logDate={parsedLog.log_date || undefined}
+          />
         )}
 
         {/* Instructions */}
