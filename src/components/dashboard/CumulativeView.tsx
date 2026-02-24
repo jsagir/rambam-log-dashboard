@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { StatCard } from '@/components/shared/StatCard';
 import { SectionTitle } from '@/components/shared/SectionTitle';
 import { TopicStream } from './TopicStream';
+import { TopicQualityTreemap } from './TopicQualityTreemap';
 import { Activity, Clock, Users, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -215,6 +216,17 @@ export function CumulativeView({ data }: CumulativeViewProps) {
         />
         <div className="bg-card border border-border rounded-lg p-5">
           <TopicStream data={data} />
+        </div>
+      </div>
+
+      {/* Topic Quality Treemap */}
+      <div>
+        <SectionTitle
+          title="Topic Quality Snapshot"
+          subtitle="Rectangle size = volume · Color = quality score"
+        />
+        <div className="bg-card border border-border rounded-lg p-5">
+          <TopicQualityTreemap data={data} />
         </div>
       </div>
 
