@@ -23,7 +23,7 @@ export function DailySummary({ data }: DailySummaryProps) {
     // Find top topic
     const topicCounts: Record<string, number> = {};
     data.forEach((day) => {
-      const interactions = day.parsed?.interactions || [];
+      const interactions = day.parsed?.interactions || day.interactions || [];
       interactions.forEach((i: any) => {
         const topic = i.topic || 'Uncategorized';
         topicCounts[topic] = (topicCounts[topic] || 0) + 1;
@@ -39,7 +39,7 @@ export function DailySummary({ data }: DailySummaryProps) {
     // Calculate quality score
     const qualityScores: number[] = [];
     data.forEach((day) => {
-      const interactions = day.parsed?.interactions || [];
+      const interactions = day.parsed?.interactions || day.interactions || [];
       interactions.forEach((i: any) => {
         const accuracy = i.accuracy || 'pending';
         if (accuracy === 'correct') qualityScores.push(100);
@@ -66,7 +66,7 @@ export function DailySummary({ data }: DailySummaryProps) {
     // Find latency spike
     const latencySpike = (() => {
       for (const day of data) {
-        const interactions = day.parsed?.interactions || [];
+        const interactions = day.parsed?.interactions || day.interactions || [];
         for (const i of interactions) {
           if (i.latency && i.latency > 3000) {
             return {
@@ -82,7 +82,7 @@ export function DailySummary({ data }: DailySummaryProps) {
 
     // VIP count
     const vipCount = data.reduce((sum, day) => {
-      const interactions = day.parsed?.interactions || [];
+      const interactions = day.parsed?.interactions || day.interactions || [];
       return sum + (Array.isArray(interactions) ? interactions.filter((i: any) => i.vip).length : 0);
     }, 0);
 

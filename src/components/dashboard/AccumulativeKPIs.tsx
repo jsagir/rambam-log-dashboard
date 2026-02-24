@@ -57,19 +57,19 @@ export function AccumulativeKPIs({ data }: AccumulativeKPIsProps) {
       interactions: d.parsed?.total_interactions || 0,
       latency: d.anomalies?.metrics?.latencies?.first_response?.avg || 0
     }));
-    const bestDay = daysWithScores.reduce((best, curr) => curr.score > best.score ? curr : best);
-    const worstDay = daysWithScores.reduce((worst, curr) => curr.score < worst.score ? curr : worst);
+    const bestDay = daysWithScores.length > 0 ? daysWithScores.reduce((best, curr) => curr.score > best.score ? curr : best) : { date: 'N/A', score: 0, interactions: 0, latency: 0 };
+    const worstDay = daysWithScores.length > 0 ? daysWithScores.reduce((worst, curr) => curr.score < worst.score ? curr : worst) : { date: 'N/A', score: 0, interactions: 0, latency: 0 };
 
     // Busiest day
-    const busiestDay = daysWithScores.reduce((busiest, curr) =>
+    const busiestDay = daysWithScores.length > 0 ? daysWithScores.reduce((busiest, curr) =>
       curr.interactions > busiest.interactions ? curr : busiest
-    );
+    ) : { date: 'N/A', score: 0, interactions: 0, latency: 0 };
 
     // Average per day
     const avgInteractionsPerDay = totalInteractions / safeData.length;
 
     // Sessions
-    const totalSessions = safeData.reduce((sum, d) => sum + (d.parsed.sessions?.length || 0), 0);
+    const totalSessions = safeData.reduce((sum, d) => sum + (d.parsed?.sessions?.length || 0), 0);
 
     // Date range
     const dates = safeData.map(d => d.log_date).sort();

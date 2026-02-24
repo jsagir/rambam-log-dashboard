@@ -9,12 +9,13 @@ interface TimelineChartProps {
 }
 
 export function TimelineChart({ interactions }: TimelineChartProps) {
+  const safeInteractions = Array.isArray(interactions) ? interactions : [];
   const chartData = useMemo(() => {
     // Group interactions by hour for trend analysis
     const hourlyData: Record<string, { hour: string; count: number; avgLatency: number; latencies: number[] }> = {};
 
-    interactions.forEach((interaction) => {
-      const timestamp = interaction.timestamps.stt;
+    safeInteractions.forEach((interaction) => {
+      const timestamp = interaction.timestamps?.stt;
       if (!timestamp) return;
 
       const date = new Date(timestamp);
@@ -26,7 +27,7 @@ export function TimelineChart({ interactions }: TimelineChartProps) {
 
       hourlyData[hour].count++;
 
-      const firstResponse = interaction.latencies.first_response;
+      const firstResponse = interaction.latencies?.first_response;
       if (firstResponse) {
         hourlyData[hour].latencies.push(firstResponse);
       }
@@ -40,7 +41,7 @@ export function TimelineChart({ interactions }: TimelineChartProps) {
         ? Math.round(data.latencies.reduce((a, b) => a + b, 0) / data.latencies.length)
         : 0
     })).sort((a, b) => a.hour.localeCompare(b.hour));
-  }, [interactions]);
+  }, [safeInteractions]);
 
   if (chartData.length === 0) {
     return null;
