@@ -10,6 +10,7 @@ import { TopicStream } from './TopicStream';
 import { TopicQualityTreemap } from './TopicQualityTreemap';
 import { DailySummary } from './DailySummary';
 import { AnomalyFeed } from './AnomalyFeed';
+import { TopicRankBumpChart } from './TopicRankBumpChart';
 import { Activity, Clock, Users, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -249,6 +250,17 @@ export function CumulativeView({ data }: CumulativeViewProps) {
           <TopicQualityTreemap data={data} />
         </div>
       </div>
+
+      {/* Topic Rank Bump Chart */}
+      {data.length >= 2 && (
+        <div>
+          <SectionTitle
+            title="Topic Popularity Trends"
+            subtitle="Which topics are rising or falling in visitor interest over time?"
+          />
+          <TopicRankBumpChart data={data} topN={6} />
+        </div>
+      )}
 
       {/* Topic Distribution + Question Types side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
