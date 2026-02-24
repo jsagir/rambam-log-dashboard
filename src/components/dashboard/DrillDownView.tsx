@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { SectionTitle } from '@/components/shared/SectionTitle';
 import { QuestionCard } from './QuestionCard';
 import { SessionFlowMap } from './SessionFlowMap';
+import { ConversationFeed } from './ConversationFeed';
 import { Search, Filter, Clock } from 'lucide-react';
 import { type InteractionData, type SessionData } from '@/types/dashboard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -222,27 +223,10 @@ export function DrillDownView({ data }: DrillDownViewProps) {
         </div>
       )}
 
-      {/* Question Cards */}
+      {/* Conversation Feed - The Hero */}
       <div>
-        <SectionTitle title="Questions & Answers" />
-        <div className="space-y-2">
-          {interactionCards.length > 0 ? (
-            interactionCards.map((interaction: InteractionData) => (
-              <QuestionCard
-                key={interaction.id}
-                interaction={interaction}
-                expanded={expandedId === interaction.id}
-                onToggle={() =>
-                  setExpandedId(expandedId === interaction.id ? null : interaction.id)
-                }
-              />
-            ))
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              No interactions match the current filters
-            </div>
-          )}
-        </div>
+        <SectionTitle title="Visitor Conversations" subtitle="What people ask when standing before a medieval sage" />
+        <ConversationFeed interactions={interactionCards} />
       </div>
     </div>
   );
