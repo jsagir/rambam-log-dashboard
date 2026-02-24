@@ -86,7 +86,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {!loading && !error && data.length > 0 && (
+        {!loading && !error && Array.isArray(data) && data.length > 0 && (
           <ExecutiveDashboard data={Array.isArray(data) ? data : []} />
         )}
       </main>

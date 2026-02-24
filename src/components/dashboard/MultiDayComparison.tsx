@@ -24,21 +24,21 @@ export function MultiDayComparison({ data }: MultiDayComparisonProps) {
     if (!safeData || safeData.length === 0) return [];
 
     return safeData.map(day => {
-      const avgLatency = day.anomalies.metrics.latencies.first_response?.avg || 0;
-      const languages = day.anomalies.metrics.languages;
+      const avgLatency = day.anomalies?.metrics?.latencies?.first_response?.avg || 0;
+      const languages = day.anomalies?.metrics?.languages || {};
 
       return {
         date: day.log_date,
-        interactions: day.parsed.total_interactions,
+        interactions: day.parsed?.total_interactions || 0,
         hebrew: languages.hebrew || 0,
         english: languages.english || 0,
         unknown: languages.null || languages.unknown || 0,
         avgLatency: Math.round(avgLatency),
-        critical: day.anomalies.summary.critical_count,
-        warnings: day.anomalies.summary.warning_count,
-        healthScore: day.anomalies.summary.critical_count === 0 && day.anomalies.summary.warning_count === 0 ? 100 :
-                     day.anomalies.summary.critical_count === 0 && day.anomalies.summary.warning_count <= 3 ? 80 :
-                     day.anomalies.summary.critical_count === 0 ? 60 : 40
+        critical: day.anomalies?.summary?.critical_count || 0,
+        warnings: day.anomalies?.summary?.warning_count || 0,
+        healthScore: (day.anomalies?.summary?.critical_count || 0) === 0 && (day.anomalies?.summary?.warning_count || 0) === 0 ? 100 :
+                     (day.anomalies?.summary?.critical_count || 0) === 0 && (day.anomalies?.summary?.warning_count || 0) <= 3 ? 80 :
+                     (day.anomalies?.summary?.critical_count || 0) === 0 ? 60 : 40
       };
     });
   }, [data]);

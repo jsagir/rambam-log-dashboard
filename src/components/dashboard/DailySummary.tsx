@@ -18,7 +18,7 @@ export function DailySummary({ data }: DailySummaryProps) {
     }
 
     // Aggregate data
-    const totalInteractions = data.reduce((sum, day) => sum + (day.parsed?.summary?.total_interactions || 0), 0);
+    const totalInteractions = data.reduce((sum, day) => sum + (day.parsed?.summary?.total_interactions || day.parsed?.total_interactions || 0), 0);
 
     // Find top topic
     const topicCounts: Record<string, number> = {};
@@ -54,13 +54,13 @@ export function DailySummary({ data }: DailySummaryProps) {
 
     // Count anomalies
     const criticalCount = data.reduce((sum, day) => {
-      const critical = day.parsed?.summary?.anomaly_summary?.critical || {};
-      return sum + Object.values(critical).reduce((a: any, b: any) => a + b, 0);
+      const critical = day.parsed?.summary?.anomaly_summary?.critical || day.anomalies?.summary?.critical_count || {};
+      return sum + (typeof critical === 'number' ? critical : Object.values(critical).reduce((a: any, b: any) => a + b, 0));
     }, 0);
 
     const warningCount = data.reduce((sum, day) => {
-      const warnings = day.parsed?.summary?.anomaly_summary?.warning || {};
-      return sum + Object.values(warnings).reduce((a: any, b: any) => a + b, 0);
+      const warnings = day.parsed?.summary?.anomaly_summary?.warning || day.anomalies?.summary?.warning_count || {};
+      return sum + (typeof warnings === 'number' ? warnings : Object.values(warnings).reduce((a: any, b: any) => a + b, 0));
     }, 0);
 
     // Find latency spike
@@ -83,7 +83,7 @@ export function DailySummary({ data }: DailySummaryProps) {
     // VIP count
     const vipCount = data.reduce((sum, day) => {
       const interactions = day.parsed?.interactions || [];
-      return sum + interactions.filter((i: any) => i.vip).length;
+      return sum + (Array.isArray(interactions) ? interactions.filter((i: any) => i.vip).length : 0);
     }, 0);
 
     // Build narrative

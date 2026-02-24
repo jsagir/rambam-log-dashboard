@@ -20,7 +20,7 @@ export function DrillDownView({ data }: DrillDownViewProps) {
   // Guard against undefined/invalid data
   const safeData = data && Array.isArray(data) ? data : [];
 
-  const [selectedDate, setSelectedDate] = useState(safeData[0]?.log_date || '');
+  const [selectedDate, setSelectedDate] = useState(safeData.length > 0 ? (safeData[0]?.log_date || '') : '');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterTopic, setFilterTopic] = useState('all');
   const [filterSensitivity, setFilterSensitivity] = useState('all');
