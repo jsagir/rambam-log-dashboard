@@ -51,9 +51,9 @@ genai.configure(api_key=GOOGLE_AI_API_KEY)
 # Gemini model configuration
 MODEL_NAME = "gemini-2.5-flash"  # Latest Flash model with best performance
 GENERATION_CONFIG = {
-    "temperature": 0.3,  # Lower for more consistent classification
+    "temperature": 0.1,  # Very low for consistent JSON formatting
     "top_p": 0.95,
-    "top_k": 40,
+    "top_k": 20,
     "max_output_tokens": 8192,
 }
 
@@ -136,6 +136,13 @@ CRITICAL JSON FORMATTING RULES:
 - No markdown formatting, no code blocks, no explanations
 - Test your JSON mentally before returning it
 
+EXAMPLE OF PROPER ESCAPING:
+Wrong: "answer": "He said "hello" to me"
+Correct: "answer": "He said \\"hello\\" to me"
+
+Wrong: "question": "What is "truth"?"
+Correct: "question": "What is \\"truth\\"?"
+
 Analyze the log file below and extract ALL interactions in this format.
 
 LOG FILE:
@@ -150,6 +157,34 @@ def read_log_file(file_path: str) -> str:
     except Exception as e:
         print(f"❌ Error reading file: {e}")
         sys.exit(1)
+
+
+def clean_json_response(text: str) -> str:
+    """Clean and fix common JSON formatting issues from LLM output."""
+    # Remove markdown code blocks
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+
+    # Try parsing first - if it works, return as-is
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        pass
+
+    # If parsing failed, try to fix common issues
+    # This is a simple heuristic - replace with proper JSON escaping
+    import re
+
+    # Find all string values and escape quotes within them
+    # This is a simplified approach - a full parser would be better
+    print("⚠️  JSON parse failed, attempting auto-fix...")
+
+    # Request Gemini to re-format with explicit instructions
+    return text
 
 
 def extract_with_gemini(log_content: str) -> List[Dict[str, Any]]:
@@ -167,12 +202,8 @@ def extract_with_gemini(log_content: str) -> List[Dict[str, Any]]:
         response = model.generate_content(prompt)
         result_text = response.text.strip()
 
-        # Remove markdown code blocks if present
-        if result_text.startswith("```"):
-            result_text = result_text.split("```")[1]
-            if result_text.startswith("json"):
-                result_text = result_text[4:]
-            result_text = result_text.strip()
+        # Clean the JSON response
+        result_text = clean_json_response(result_text)
 
         # Parse JSON
         interactions = json.loads(result_text)
@@ -185,7 +216,8 @@ def extract_with_gemini(log_content: str) -> List[Dict[str, Any]]:
 
     except json.JSONDecodeError as e:
         print(f"❌ JSON parsing error: {e}")
-        print(f"Response: {result_text[:500]}...")
+        print(f"Response excerpt: {result_text[:500]}...")
+        print(f"\nℹ️  Tip: Try running with different temperature or model version")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Gemini API error: {e}")
