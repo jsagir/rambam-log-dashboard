@@ -32,30 +32,40 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Museum-themed dark backgrounds */
+    --background: 240 6% 5%;        /* #0d0d12 */
+    --foreground: 0 0% 98%;         /* Almost white */
+    --card: 240 5% 10%;             /* #1a1a1f */
+    --card-foreground: 0 0% 98%;
+    --popover: 240 5% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Museum gold accent */
+    --primary: 45 33% 59%;          /* #c8a961 museum gold */
+    --primary-foreground: 240 6% 5%;
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 45 33% 59%;           /* Museum gold */
+    --accent-foreground: 240 6% 5%;
+
+    /* Status colors */
+    --destructive: 0 72% 51%;       /* #ef4444 red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 15%;
+    --input: 240 5% 15%;
+    --ring: 45 33% 59%;             /* Gold ring */
+
+    /* Chart colors - vivid palette */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    /* Museum gold variable for components */
+    --gold: #c8a961;
   }
 }
 

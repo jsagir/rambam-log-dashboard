@@ -1,302 +1,487 @@
 #!/usr/bin/env python3
 """
-Rambam Log Parser
-Extracts structured interactions from raw newline-delimited JSON logs
+Rambam Log Parser — Extracts structured interactions from raw log files.
+
+Usage:
+    python3 parse_log.py <log_file_path> --output <output_json_path>
 """
 
 import json
+import sys
 import argparse
+import re
 from datetime import datetime
-from typing import List, Dict, Any
 from collections import defaultdict
 
 
-def parse_timestamp(ts_str: str) -> datetime:
-    """Parse ISO timestamp string to datetime object"""
-    if ts_str is None:
-        return None
-    return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+def parse_time(time_str):
+    """Parse the non-zero-padded time format used in Rambam logs."""
+    try:
+        return datetime.strptime(time_str, "%Y/%m/%d %H:%M:%S")
+    except ValueError:
+        # Handle single-digit components: "2026/2/22 7:2:12"
+        parts = time_str.split(" ")
+        date_parts = parts[0].split("/")
+        time_parts = parts[1].split(":")
+        normalized = f"{date_parts[0]}/{int(date_parts[1]):02d}/{int(date_parts[2]):02d} " \
+                     f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}:{int(time_parts[2]):02d}"
+        return datetime.strptime(normalized, "%Y/%m/%d %H:%M:%S")
 
 
-def parse_unix_timestamp(ts_ms: int) -> str:
-    """Convert Unix timestamp in milliseconds to ISO format"""
-    if ts_ms is None:
-        return None
-    return datetime.fromtimestamp(ts_ms / 1000.0).isoformat() + 'Z'
+def parse_time_with_ms(time_str):
+    """Parse time that may include milliseconds (from stress test logs)."""
+    if ":" in time_str and time_str.count(":") > 2:
+        # Format like "09.42.37:741" — non-standard, handle gracefully
+        pass
+    return parse_time(time_str)
 
 
-def parse_log_file(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Parse newline-delimited JSON log file and group into interactions
+GREETING_PATTERNS = [
+    r"^thank\s*you",
+    r"^thanks",
+    r"^תודה",
+    r"^שלום",
+    r"^shalom",
+    r"^good\s*morning",
+    r"^בוקר\s*טוב",
+    r"^hello",
+    r"^hi\b",
+    r"^hey\b",
+]
 
-    Returns list of interaction dictionaries with:
-    - question_text: visitor question from STT
-    - question_type: classification
-    - language: detected language
-    - response_text: concatenated LLM response
-    - timestamps: various timing points
-    - latencies: computed deltas
-    - anomalies: detected issues
-    """
 
-    interactions = []
-    current_interaction = None
+def is_greeting(text):
+    """Check if text is a simple greeting/thanks (not a real question)."""
+    text_lower = text.strip().lower()
+    for pattern in GREETING_PATTERNS:
+        if re.match(pattern, text_lower, re.IGNORECASE):
+            return True
+    return False
 
-    with open(file_path, 'r', encoding='utf-8') as f:
+
+def detect_language_from_text(text):
+    """Heuristic language detection from text content."""
+    hebrew_chars = len(re.findall(r'[\u0590-\u05FF]', text))
+    arabic_chars = len(re.findall(r'[\u0600-\u06FF]', text))
+    cyrillic_chars = len(re.findall(r'[\u0400-\u04FF]', text))
+    latin_chars = len(re.findall(r'[a-zA-Z]', text))
+    total = hebrew_chars + arabic_chars + cyrillic_chars + latin_chars
+    if total == 0:
+        return "unknown"
+    if hebrew_chars / max(total, 1) > 0.3:
+        return "he"
+    if arabic_chars / max(total, 1) > 0.3:
+        return "ar"
+    if cyrillic_chars / max(total, 1) > 0.3:
+        return "ru"
+    if latin_chars / max(total, 1) > 0.3:
+        return "en"
+    return "unknown"
+
+
+PERSONA_BREAK_PATTERNS = [
+    r"I only support (Hebrew and English|English and Hebrew)",
+    r"System error",
+    r"Error processing",
+]
+
+FALLBACK_PATTERNS = [
+    r"I want to make sure I understand you correctly",
+    r"Could you please rephrase your question",
+    r"אני רוצה לוודא שהבנתי אותך נכון",
+    r"אפשר לנסח את השאלה שוב",
+]
+
+
+def check_persona_break(text):
+    """Check if response text contains system-level messages breaking persona."""
+    for pattern in PERSONA_BREAK_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
+
+def check_fallback(text):
+    """Check if response is a fallback/rephrase request."""
+    for pattern in FALLBACK_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
+
+def parse_log_file(filepath):
+    """Parse a Rambam log file and return structured entries."""
+    entries = []
+    with open(filepath, "r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
-
             try:
                 entry = json.loads(line)
-            except json.JSONDecodeError as e:
-                print(f"Warning: Failed to parse line {line_num}: {e}")
-                continue
+                entry["_line_num"] = line_num
+                entries.append(entry)
+            except json.JSONDecodeError:
+                entries.append({
+                    "_line_num": line_num,
+                    "_parse_error": True,
+                    "_raw": line
+                })
+    return entries
 
-            # Handle both old format and new nested format
-            msg_type = entry.get('type')
 
-            # For new format: ai_message contains nested msg with type and data
-            if msg_type == 'ai_message' and isinstance(entry.get('msg'), dict):
-                inner_msg = entry['msg']
-                inner_type = inner_msg.get('type')
-                timestamp = parse_unix_timestamp(inner_msg.get('timestamp'))
-                data = inner_msg.get('data', {})
-                code = inner_msg.get('code', 200)
-            else:
-                # Old format
-                inner_type = msg_type
-                timestamp = entry.get('timestamp') or entry.get('time')
-                data = entry
-                code = entry.get('code', 200)
+def group_interactions(entries):
+    """Group log entries into complete interactions (question + classification + answer).
 
-            # Start new interaction on STT
-            if msg_type == 'stt':
-                # Save previous interaction if exists
-                if current_interaction:
-                    interactions.append(current_interaction)
+    Strategy: Work from ai_message groups backward to find the triggering STT.
+    Each unique msg.id represents one AI response. We find the closest preceding STT
+    that hasn't already been claimed by another ai_message group.
 
-                # Convert time format if needed
-                if 'time' in entry:
-                    # Convert "2026/2/22 7:2:12" to ISO format
-                    try:
-                        time_str = entry['time']
-                        dt = datetime.strptime(time_str, "%Y/%m/%d %H:%M:%S")
-                        timestamp = dt.isoformat() + 'Z'
-                    except:
-                        timestamp = None
-                else:
-                    timestamp = entry.get('timestamp')
+    STT entries that don't trigger any AI response (e.g., "Thank you") are recorded
+    as standalone greetings with no response.
+    """
+    interactions = []
+    ai_messages_by_id = defaultdict(list)
 
-                current_interaction = {
-                    'question_text': entry.get('msg', ''),
-                    'question_type': None,
-                    'language': None,
-                    'response_chunks': [],
-                    'response_text': '',
-                    'audio_id': None,
-                    'style': None,
-                    'style_degree': None,
-                    'timestamps': {
-                        'stt': timestamp,
-                        'waiting_audio': None,
-                        'first_chunk': None,
-                        'last_chunk': None,
-                        'finished': None
-                    },
-                    'latencies': {},
-                    'errors': [],
-                    'msg_codes': [],
-                    'raw_entries': [entry]
-                }
+    # First pass: group all ai_messages by their msg.id
+    unique_msg_ids_ordered = []
+    seen_ids = set()
+    for entry in entries:
+        if entry.get("type") == "ai_message" and isinstance(entry.get("msg"), dict):
+            msg_id = entry["msg"].get("id", "unknown")
+            ai_messages_by_id[msg_id].append(entry)
+            if msg_id not in seen_ids:
+                unique_msg_ids_ordered.append(msg_id)
+                seen_ids.add(msg_id)
 
-            elif current_interaction is not None:
-                current_interaction['raw_entries'].append(entry)
+    # Second pass: for each AI response group, find the closest preceding STT
+    # that is between the previous AI group's first message and this group's first message
+    claimed_stt_lines = set()
+    ai_to_stt = {}  # msg_id -> stt_entry
 
-                # Waiting audio (question classification)
-                if inner_type == 'waiting_audio':
-                    current_interaction['question_type'] = data.get('question_type')
-                    lang = data.get('language', 'unknown')
-                    # Normalize language codes
-                    if lang == 'he-IL':
-                        lang = 'hebrew'
-                    elif lang == 'en-US' or lang == 'english':
-                        lang = 'english'
-                    current_interaction['language'] = lang
-                    current_interaction['audio_id'] = data.get('audio_id')
-                    current_interaction['timestamps']['waiting_audio'] = timestamp
+    all_stt = [e for e in entries if e.get("type") == "stt"]
 
-                # Stream chunks (LLM response)
-                elif inner_type == 'stream_chunk':
-                    result = data.get('result', '')
-                    if result:
-                        current_interaction['response_chunks'].append(result)
-                        if not current_interaction['timestamps']['first_chunk']:
-                            current_interaction['timestamps']['first_chunk'] = timestamp
-                        current_interaction['timestamps']['last_chunk'] = timestamp
+    for msg_id in unique_msg_ids_ordered:
+        ai_group = ai_messages_by_id[msg_id]
+        first_ai_line = min(e["_line_num"] for e in ai_group)
 
-                    # Check if finished
-                    if data.get('finished'):
-                        current_interaction['timestamps']['finished'] = timestamp
+        # Find the closest preceding STT that hasn't been claimed
+        best_stt = None
+        for stt in reversed(all_stt):
+            if stt["_line_num"] < first_ai_line and stt["_line_num"] not in claimed_stt_lines:
+                best_stt = stt
+                break
 
-                    # Style information from stream chunks
-                    if 'style' in data:
-                        current_interaction['style'] = data.get('style')
-                    if 'styledegree' in data:
-                        current_interaction['style_degree'] = data.get('styledegree')
+        if best_stt:
+            claimed_stt_lines.add(best_stt["_line_num"])
+            ai_to_stt[msg_id] = best_stt
 
-                # Track message codes
-                current_interaction['msg_codes'].append(code)
-                if code != 200:
-                    current_interaction['errors'].append({
-                        'code': code,
-                        'type': inner_type,
-                        'timestamp': timestamp,
-                        'entry': entry
-                    })
+    # Third pass: build interactions for each AI response group
+    for msg_id in unique_msg_ids_ordered:
+        ai_group = ai_messages_by_id[msg_id]
+        stt = ai_to_stt.get(msg_id)
 
-    # Don't forget last interaction
-    if current_interaction:
-        interactions.append(current_interaction)
+        if stt:
+            question_text = stt.get("msg", "")
+            stt_time_str = stt["time"]
+            stt_time = parse_time(stt_time_str)
+        else:
+            question_text = "[no STT captured]"
+            stt_time_str = ai_group[0]["time"]
+            stt_time = parse_time(stt_time_str)
 
-    # CRITICAL: Sort interactions by timestamp (chronological order)
-    # This ensures trend analysis and daily patterns are accurate
-    interactions.sort(key=lambda x: x['timestamps'].get('stt') or '9999-12-31')
+        # Extract classification (waiting_audio)
+        waiting_audio = None
+        stream_chunks = []
+        for ai_entry in ai_group:
+            msg_type = ai_entry["msg"].get("type")
+            if msg_type == "waiting_audio":
+                waiting_audio = ai_entry
+            elif msg_type == "stream_chunk":
+                stream_chunks.append(ai_entry)
 
-    # Post-process: compute latencies and concatenate responses
-    for interaction in interactions:
-        # Concatenate response
-        interaction['response_text'] = ''.join(interaction['response_chunks'])
+        # Reconstruct full answer
+        answer_parts = []
+        for chunk in stream_chunks:
+            result = chunk["msg"].get("data", {}).get("result", "")
+            if result:
+                answer_parts.append(result)
 
-        # Compute latencies
-        ts = interaction['timestamps']
-        if ts['stt'] and ts['waiting_audio']:
-            interaction['latencies']['classification'] = (
-                parse_timestamp(ts['waiting_audio']) - parse_timestamp(ts['stt'])
-            ).total_seconds() * 1000
+        full_answer = "".join(answer_parts).strip()
 
-        if ts['stt'] and ts['first_chunk']:
-            interaction['latencies']['first_response'] = (
-                parse_timestamp(ts['first_chunk']) - parse_timestamp(ts['stt'])
-            ).total_seconds() * 1000
+        # Extract metadata
+        classification = {}
+        if waiting_audio:
+            data = waiting_audio["msg"].get("data", {})
+            classification = {
+                "question_type": data.get("question_type", "unknown"),
+                "language": data.get("language", "unknown"),
+                "audio_id": data.get("audio_id", "unknown"),
+                "opening_text": data.get("opening_text", ""),
+            }
 
-        if ts['stt'] and ts['finished']:
-            interaction['latencies']['total'] = (
-                parse_timestamp(ts['finished']) - parse_timestamp(ts['stt'])
-            ).total_seconds() * 1000
+        # Compute latencies (using msg.timestamp in milliseconds)
+        latencies = {}
+        if waiting_audio:
+            wa_ts = waiting_audio["msg"].get("timestamp", 0)
+            if stream_chunks:
+                first_chunk_ts = stream_chunks[0]["msg"].get("timestamp", 0)
+                last_chunk_ts = stream_chunks[-1]["msg"].get("timestamp", 0)
+                latencies["classification_to_first_chunk_ms"] = first_chunk_ts - wa_ts
+                latencies["classification_to_last_chunk_ms"] = last_chunk_ts - wa_ts
+                latencies["generation_duration_ms"] = last_chunk_ts - first_chunk_ts
+
+        # Check for anomalies
+        anomalies = []
+        if classification.get("language") == "unknown":
+            anomalies.append("LANG_UNKNOWN")
+        if waiting_audio and not stream_chunks:
+            anomalies.append("LLM_ERROR")
+        if check_persona_break(full_answer):
+            anomalies.append("PERSONA_BREAK")
+        if check_fallback(full_answer):
+            anomalies.append("FALLBACK_TRIGGERED")
+        if not full_answer and stream_chunks:
+            anomalies.append("EMPTY_RESPONSE")
+        if stream_chunks and not stream_chunks[-1]["msg"].get("data", {}).get("finished", False):
+            anomalies.append("INCOMPLETE_RESPONSE")
+        if len(question_text.split()) < 4 and not is_greeting(question_text):
+            anomalies.append("STT_TRUNCATION")
+        if ai_group and ai_group[0]["msg"].get("code") != 200:
+            anomalies.append("NON_200_CODE")
+
+        # Check latency thresholds
+        gen_start = latencies.get("classification_to_first_chunk_ms", 0)
+        if gen_start > 6000:
+            anomalies.append("LATENCY_SPIKE_CRITICAL")
+        elif gen_start > 3000:
+            anomalies.append("LATENCY_SPIKE_WARN")
+
+        # Response language from chunks
+        response_language = "unknown"
+        if stream_chunks:
+            response_language = stream_chunks[0]["msg"].get("data", {}).get("language", "unknown")
+
+        interaction = {
+            "index": len(interactions) + 1,
+            "msg_id": msg_id,
+            "stt_time": stt_time_str,
+            "stt_timestamp_parsed": stt_time.isoformat(),
+            "question": question_text,
+            "question_language_detected": detect_language_from_text(question_text),
+            "is_greeting": is_greeting(question_text),
+            "word_count": len(question_text.split()),
+            "classification": classification,
+            "response_language": response_language,
+            "full_answer": full_answer,
+            "answer_chunk_count": len(stream_chunks),
+            "latencies": latencies,
+            "anomalies": anomalies,
+        }
+
+        interactions.append(interaction)
+
+    # Fourth pass: add unclaimed STT entries as standalone greetings/orphans
+    for stt in all_stt:
+        if stt["_line_num"] not in claimed_stt_lines:
+            question_text = stt.get("msg", "")
+            stt_time = parse_time(stt["time"])
+            anomalies = []
+            if not is_greeting(question_text):
+                anomalies.append("STT_DROPPED")
+
+            interactions.append({
+                "index": len(interactions) + 1,
+                "msg_id": None,
+                "stt_time": stt["time"],
+                "stt_timestamp_parsed": stt_time.isoformat(),
+                "question": question_text,
+                "question_language_detected": detect_language_from_text(question_text),
+                "is_greeting": is_greeting(question_text),
+                "word_count": len(question_text.split()),
+                "classification": {},
+                "response_language": None,
+                "full_answer": None,
+                "answer_chunk_count": 0,
+                "latencies": {},
+                "anomalies": anomalies,
+            })
+
+    # Sort all interactions by time
+    interactions.sort(key=lambda x: parse_time(x["stt_time"]))
+
+    # Re-index
+    for idx, interaction in enumerate(interactions):
+        interaction["index"] = idx + 1
 
     return interactions
 
 
-def group_into_sessions(interactions: List[Dict], gap_threshold_minutes: int = 30) -> List[List[Dict]]:
-    """Group interactions into sessions based on time gaps"""
+def group_into_sessions(interactions, gap_minutes=30):
+    """Group interactions into sessions based on time gaps."""
     if not interactions:
-        return []
-
-    # Filter out interactions without valid timestamps
-    valid_interactions = [i for i in interactions if i['timestamps'].get('stt')]
-
-    if not valid_interactions:
         return []
 
     sessions = []
-    current_session = [valid_interactions[0]]
+    current_session = {
+        "session_id": 1,
+        "interactions": [interactions[0]],
+        "start_time": interactions[0]["stt_time"],
+    }
 
-    for i in range(1, len(valid_interactions)):
-        prev = valid_interactions[i-1]
-        curr = valid_interactions[i]
+    for i in range(1, len(interactions)):
+        prev_time = parse_time(interactions[i - 1]["stt_time"])
+        curr_time = parse_time(interactions[i]["stt_time"])
+        gap = (curr_time - prev_time).total_seconds() / 60
 
-        try:
-            prev_ts = parse_timestamp(prev['timestamps']['stt'])
-            curr_ts = parse_timestamp(curr['timestamps']['stt'])
-            gap_minutes = (curr_ts - prev_ts).total_seconds() / 60
+        if gap > gap_minutes:
+            current_session["end_time"] = interactions[i - 1]["stt_time"]
+            current_session["interaction_count"] = len(current_session["interactions"])
+            sessions.append(current_session)
+            current_session = {
+                "session_id": len(sessions) + 1,
+                "interactions": [interactions[i]],
+                "start_time": interactions[i]["stt_time"],
+            }
+        else:
+            current_session["interactions"].append(interactions[i])
 
-            if gap_minutes > gap_threshold_minutes:
-                sessions.append(current_session)
-                current_session = [curr]
-            else:
-                current_session.append(curr)
-        except (ValueError, TypeError) as e:
-            # If timestamp parsing fails, just add to current session
-            current_session.append(curr)
-
+    # Close last session
+    current_session["end_time"] = interactions[-1]["stt_time"]
+    current_session["interaction_count"] = len(current_session["interactions"])
     sessions.append(current_session)
+
     return sessions
 
 
-def extract_log_date(interactions: List[Dict]) -> str:
-    """Extract the date from the log file based on first interaction"""
-    if not interactions:
-        return None
+def compute_summary(interactions, sessions):
+    """Compute overall summary statistics."""
+    total = len(interactions)
+    questions_only = [i for i in interactions if not i.get("is_greeting")]
+    languages = set()
+    for i in interactions:
+        lang = i.get("classification", {}).get("language", i.get("question_language_detected", "unknown"))
+        if lang != "unknown":
+            languages.add(lang)
 
-    first_ts = interactions[0]['timestamps'].get('stt')
-    if first_ts:
-        try:
-            dt = parse_timestamp(first_ts)
-            return dt.strftime('%Y-%m-%d') if dt else None
-        except:
-            return None
-    return None
+    # Latency stats
+    gen_latencies = [i["latencies"]["classification_to_first_chunk_ms"]
+                     for i in interactions
+                     if i.get("latencies", {}).get("classification_to_first_chunk_ms")]
+
+    latency_stats = {}
+    if gen_latencies:
+        latency_stats = {
+            "generation_start_ms": {
+                "min": min(gen_latencies),
+                "max": max(gen_latencies),
+                "avg": round(sum(gen_latencies) / len(gen_latencies)),
+                "samples": len(gen_latencies),
+            }
+        }
+
+    # Question type distribution
+    q_types = defaultdict(int)
+    for i in interactions:
+        qt = i.get("classification", {}).get("question_type", "unknown")
+        q_types[qt] += 1
+
+    # Anomaly summary
+    all_anomalies = defaultdict(int)
+    for i in interactions:
+        for a in i.get("anomalies", []):
+            all_anomalies[a] += 1
+
+    # Audio ID distribution
+    audio_ids = defaultdict(int)
+    for i in interactions:
+        aid = i.get("classification", {}).get("audio_id", "unknown")
+        audio_ids[aid] += 1
+
+    critical_anomalies = {k: v for k, v in all_anomalies.items()
+                          if k in ("LANG_UNKNOWN", "LLM_ERROR", "PERSONA_BREAK", "NON_200_CODE")}
+    warning_anomalies = {k: v for k, v in all_anomalies.items()
+                         if k not in critical_anomalies}
+
+    return {
+        "total_interactions": total,
+        "total_questions": len(questions_only),
+        "total_greetings": total - len(questions_only),
+        "languages": sorted(languages),
+        "time_span": {
+            "first": interactions[0]["stt_time"] if interactions else None,
+            "last": interactions[-1]["stt_time"] if interactions else None,
+        },
+        "sessions": len(sessions),
+        "latency_stats": latency_stats,
+        "question_type_distribution": dict(q_types),
+        "audio_id_distribution": dict(audio_ids),
+        "anomaly_summary": {
+            "critical": dict(critical_anomalies),
+            "warnings": dict(warning_anomalies),
+            "total_anomalies": sum(all_anomalies.values()),
+        },
+        "health": "🔴 Critical" if critical_anomalies else ("🟡 Warnings" if warning_anomalies else "🟢 Healthy"),
+    }
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Parse Rambam log files')
-    parser.add_argument('log_file', help='Path to log file')
-    parser.add_argument('--output', '-o', help='Output JSON file path')
-    parser.add_argument('--sessions', action='store_true', help='Group into sessions')
-
+    parser = argparse.ArgumentParser(description="Parse Rambam interaction logs")
+    parser.add_argument("log_file", help="Path to the log file")
+    parser.add_argument("--output", "-o", default="/home/claude/parsed_interactions.json",
+                        help="Output JSON file path")
     args = parser.parse_args()
 
-    print(f"Parsing {args.log_file}...")
-    interactions = parse_log_file(args.log_file)
-    print(f"Found {len(interactions)} interactions")
+    print(f"Parsing log file: {args.log_file}")
+    entries = parse_log_file(args.log_file)
+    print(f"  Found {len(entries)} raw entries")
 
-    # Extract log date for trend analysis
-    log_date = extract_log_date(interactions)
-    if log_date:
-        print(f"Log date: {log_date}")
+    parse_errors = [e for e in entries if e.get("_parse_error")]
+    if parse_errors:
+        print(f"  ⚠️ {len(parse_errors)} lines failed to parse as JSON")
 
-    # Get time range
-    time_range = {}
+    interactions = group_interactions(entries)
+    print(f"  Grouped into {len(interactions)} interactions")
+
+    sessions = group_into_sessions(interactions)
+    print(f"  Identified {len(sessions)} sessions")
+
+    summary = compute_summary(interactions, sessions)
+
+    # Extract log date from first interaction
+    log_date = None
+    time_range = None
     if interactions:
-        first_time = interactions[0]['timestamps'].get('stt')
-        last_time = interactions[-1]['timestamps'].get('stt') or interactions[-1]['timestamps'].get('finished')
-        if first_time and last_time:
-            time_range = {
-                'start': first_time,
-                'end': last_time,
-                'date': log_date
-            }
+        first_time = datetime.fromisoformat(interactions[0]["stt_timestamp_parsed"])
+        last_time = datetime.fromisoformat(interactions[-1]["stt_timestamp_parsed"])
+        log_date = first_time.strftime("%Y-%m-%d")
+        time_range = f"{first_time.strftime('%H:%M')} - {last_time.strftime('%H:%M')}"
 
-    output_data = {
-        'log_date': log_date,
-        'time_range': time_range,
-        'total_interactions': len(interactions),
-        'interactions': interactions
+    report = {
+        "log_file": args.log_file,
+        "log_date": log_date,
+        "time_range": time_range,
+        "summary": summary,
+        "sessions": [{
+            "session_id": s["session_id"],
+            "start_time": s["start_time"],
+            "end_time": s["end_time"],
+            "interaction_count": s["interaction_count"],
+            "interaction_indices": [i["index"] for i in s["interactions"]],
+        } for s in sessions],
+        "interactions": interactions,
     }
 
-    if args.sessions:
-        sessions = group_into_sessions(interactions)
-        output_data['sessions'] = [
-            {
-                'session_number': i + 1,
-                'interaction_count': len(session),
-                'start_time': session[0]['timestamps']['stt'],
-                'end_time': session[-1]['timestamps'].get('finished') or session[-1]['timestamps']['stt'],
-                'interactions': session
-            }
-            for i, session in enumerate(sessions)
-        ]
-        print(f"Grouped into {len(sessions)} sessions")
+    with open(args.output, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
 
-    if args.output:
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
-        print(f"Output written to {args.output}")
-    else:
-        print(json.dumps(output_data, indent=2, ensure_ascii=False))
+    print(f"\n  Output written to: {args.output}")
+    print(f"  Health: {summary['health']}")
+    if summary['anomaly_summary']['critical']:
+        print(f"  🔴 Critical: {summary['anomaly_summary']['critical']}")
+    if summary['anomaly_summary']['warnings']:
+        print(f"  🟡 Warnings: {summary['anomaly_summary']['warnings']}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

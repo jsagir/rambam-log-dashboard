@@ -9,6 +9,67 @@ const pythonDir = path.join(__dirname, '..', 'python');
 const outputFile = path.join(__dirname, '..', 'public', 'dashboard-data.json');
 const tempDir = '/tmp';
 
+// Topic classification based on keywords
+function classifyTopic(question) {
+  const rules = [
+    { keywords: ['חרד','הרד','haredi','צבא','army','enlist','defend','מתגייס','idf'], topic: 'Haredi / Army / Draft' },
+    { keywords: ['נצרות','christianity','islam','עבודה זרה','idolatry'], topic: 'Interfaith' },
+    { keywords: ['שבת','shabbat','sabbath','כשרות','בשר','חלב','kashrut'], topic: 'Shabbat / Halacha' },
+    { keywords: ['נעליים','shoes','jewelry','תכשיט','table','שולחן','לובש','wear'], topic: 'Personal / Lifestyle' },
+    { keywords: ['נתניהו','netanyahu','government','כנסת','knesset','election'], topic: 'Modern Politics' },
+    { keywords: ['קפטן','captain','ספורט','sport','כדורגל','football','team','מנהיג'], topic: 'Sports / Leadership' },
+    { keywords: ['קראים','karaite','reform','conservative'], topic: 'Jewish Sects' },
+    { keywords: ['מוזיאון','museum','סובלנות','tolerance'], topic: 'Meta / Museum' },
+    { keywords: ['רפואה','health','doctor','רופא','body','גוף'], topic: 'Science / Medicine' },
+    { keywords: ['תורה','torah','study','לימוד','תלמוד'], topic: 'Torah Study' },
+    { keywords: ['בוקר','morning','פנים','face','נקיון','clean'], topic: 'Daily Practice' },
+  ];
+
+  const q = question.toLowerCase();
+  for (const rule of rules) {
+    if (rule.keywords.some(k => q.includes(k))) return rule.topic;
+  }
+  return 'General Question';
+}
+
+// Sensitivity rating based on topic and content
+function rateSensitivity(topic, question) {
+  const q = question.toLowerCase();
+  if (topic === 'Interfaith' && (q.includes('עבודה זרה') || q.includes('idolatry'))) return 'critical';
+  if (['Haredi / Army / Draft', 'Modern Politics'].includes(topic)) return 'high';
+  if (['Interfaith', 'Jewish Sects', 'Shabbat / Halacha'].includes(topic)) return 'medium';
+  return 'low';
+}
+
+// VIP detection - finds named visitors
+function detectVIP(question) {
+  // Pattern: someone introduces a named person
+  const patterns = [
+    /נמצא איתנו.*?(\p{L}+ \p{L}+)/u,          // Hebrew: "with us is [Name]"
+    /we have with us.*?([A-Z][a-z]+ [A-Z][a-z]+)/i,  // English
+    /עורך|editor|minister|professor|prof\.|dr\./i,    // Title keywords
+  ];
+  for (const p of patterns) {
+    const match = question.match(p);
+    if (match) return match[1] || 'VIP detected';
+  }
+  return null;
+}
+
+// Enrich interaction with topic, sensitivity, and VIP detection
+function enrichInteraction(interaction) {
+  const topic = classifyTopic(interaction.question);
+  const sensitivity = rateSensitivity(topic, interaction.question);
+  const vip = detectVIP(interaction.question);
+
+  return {
+    ...interaction,
+    topic,
+    sensitivity,
+    vip,
+  };
+}
+
 async function processLogs() {
   console.log('🔍 Processing logs for dashboard...');
 
@@ -33,32 +94,27 @@ async function processLogs() {
 
         const logPath = path.join(logsDir, filename);
         const parsedPath = path.join(tempDir, `parsed-${Date.now()}.json`);
-        const anomalyPath = path.join(tempDir, `anomaly-${Date.now()}.json`);
 
-        // Parse
+        // Parse (anomaly detection is now built into parse_log.py)
         execSync(
-          `python3 ${path.join(pythonDir, 'parse_log.py')} "${logPath}" --output "${parsedPath}" --sessions`,
+          `python3 ${path.join(pythonDir, 'parse_log.py')} "${logPath}" --output "${parsedPath}"`,
           { maxBuffer: 10 * 1024 * 1024, stdio: 'pipe' }
         );
 
-        // Analyze
-        execSync(
-          `python3 ${path.join(pythonDir, 'detect_anomalies.py')} "${parsedPath}" --output "${anomalyPath}"`,
-          { maxBuffer: 10 * 1024 * 1024, stdio: 'pipe' }
-        );
-
-        // Read results
+        // Read parsed results
         const parsedContent = fs.readFileSync(parsedPath, 'utf-8');
-        const anomalyContent = fs.readFileSync(anomalyPath, 'utf-8');
-
         const parsed = JSON.parse(parsedContent);
-        const anomalies = JSON.parse(anomalyContent);
+
+        // Enrich each interaction with topic, sensitivity, VIP
+        if (parsed.interactions && Array.isArray(parsed.interactions)) {
+          parsed.interactions = parsed.interactions.map(enrichInteraction);
+        }
 
         results.push({
           filename,
           log_date: parsed.log_date,
+          time_range: parsed.time_range,
           parsed,
-          anomalies,
         });
 
         console.log(`  ✅ ${filename} processed`);
@@ -66,7 +122,6 @@ async function processLogs() {
         // Cleanup temp files
         try {
           fs.unlinkSync(parsedPath);
-          fs.unlinkSync(anomalyPath);
         } catch (e) {}
       } catch (error) {
         console.error(`  ❌ Error processing ${filename}:`, error.message);
@@ -84,6 +139,18 @@ async function processLogs() {
     fs.writeFileSync(outputFile, JSON.stringify({ results }, null, 2));
     console.log(`\n✅ Dashboard data saved to ${outputFile}`);
     console.log(`📊 Processed ${results.length} logs successfully`);
+
+    // Print summary statistics
+    const totalInteractions = results.reduce((sum, r) => sum + (r.parsed.summary?.total_interactions || 0), 0);
+    const criticalCount = results.reduce((sum, r) => {
+      const critical = r.parsed.summary?.anomaly_summary?.critical || {};
+      return sum + Object.values(critical).reduce((a, b) => a + b, 0);
+    }, 0);
+
+    console.log(`📈 Total interactions: ${totalInteractions}`);
+    if (criticalCount > 0) {
+      console.log(`🔴 Critical anomalies found: ${criticalCount}`);
+    }
   } catch (error) {
     console.error('❌ Error processing logs:', error);
     process.exit(1);

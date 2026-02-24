@@ -1,12 +1,29 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, DM_Serif_Display, Noto_Sans_Hebrew } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: '--font-dm-sans',
+  display: 'swap',
+});
+
+const dmSerif = DM_Serif_Display({
+  weight: ['400'],
+  subsets: ["latin"],
+  variable: '--font-dm-serif',
+  display: 'swap',
+});
+
+const notoHebrew = Noto_Sans_Hebrew({
+  subsets: ["hebrew"],
+  variable: '--font-noto-hebrew',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: "Rambam Log Analytics Dashboard",
-  description: "Real-time analysis dashboard for Rambam AI holographic system logs",
+  title: "Rambam System Dashboard | Museum of Tolerance Jerusalem",
+  description: "AI Holographic Experience Analytics - Museum of Tolerance Jerusalem",
 };
 
 export default function RootLayout({
@@ -15,8 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className="dark">
+      <body className={`${dmSans.variable} ${dmSerif.variable} ${notoHebrew.variable} font-sans antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }
