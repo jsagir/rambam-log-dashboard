@@ -29,6 +29,8 @@ export interface AnomalyFeedProps {
 export function AnomalyFeed({ data, onInteractionClick }: AnomalyFeedProps) {
   // Extract and categorize anomalies
   const anomalies = useMemo(() => {
+    if (!data || !Array.isArray(data)) return [];
+
     const events: AnomalyEvent[] = [];
 
     data.forEach((day) => {

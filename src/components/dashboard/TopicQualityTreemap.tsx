@@ -77,11 +77,11 @@ export function TopicQualityTreemap({ data }: TopicQualityTreemapProps) {
   const CustomizedContent = (props: any) => {
     const { x, y, width, height, name, size, qualityScore } = props;
 
-    // Don't render if too small
-    if (width < 30 || height < 30) return null;
+    // Don't render if too small or missing required data
+    if (width < 30 || height < 30 || qualityScore === undefined || qualityScore === null) return null;
 
-    const color = getQualityColor(qualityScore);
-    const textColor = qualityScore >= 60 ? '#ffffff' : '#1a1a1a';
+    const color = getQualityColor(qualityScore || 0);
+    const textColor = (qualityScore || 0) >= 60 ? '#ffffff' : '#1a1a1a';
 
     return (
       <g>
@@ -109,7 +109,7 @@ export function TopicQualityTreemap({ data }: TopicQualityTreemapProps) {
             fontSize={width > 100 ? 13 : 11}
             fontWeight="600"
           >
-            {name.length > 20 ? name.substring(0, 18) + '...' : name}
+            {name && typeof name === 'string' && name.length > 20 ? name.substring(0, 18) + '...' : (name || '')}
           </text>
         )}
 

@@ -112,6 +112,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 0,
+          "warning_count": 0
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 0,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 2614
+            }
+          }
+        }
       }
     },
     {
@@ -710,6 +728,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 0,
+          "warning_count": 5
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1807
+            }
+          }
+        }
       }
     },
     {
@@ -2234,6 +2270,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 5,
+          "warning_count": 12
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 2,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1659
+            }
+          }
+        }
       }
     },
     {
@@ -2667,6 +2721,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 1,
+          "warning_count": 6
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1693
+            }
+          }
+        }
       }
     },
     {
@@ -3127,6 +3199,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 1,
+          "warning_count": 6
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1876
+            }
+          }
+        }
       }
     },
     {
@@ -3815,6 +3905,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 0,
+          "warning_count": 3
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1174
+            }
+          }
+        }
       }
     },
     {
@@ -4503,6 +4611,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 0,
+          "warning_count": 3
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 1,
+            "english": 2,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1174
+            }
+          }
+        }
       }
     },
     {
@@ -4957,6 +5083,24 @@
             "vip": null
           }
         ]
+      },
+      "anomalies": {
+        "summary": {
+          "critical_count": 0,
+          "warning_count": 7
+        },
+        "metrics": {
+          "languages": {
+            "hebrew": 2,
+            "english": 1,
+            "null": 0
+          },
+          "latencies": {
+            "first_response": {
+              "avg": 1124
+            }
+          }
+        }
       }
     }
   ]

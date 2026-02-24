@@ -25,7 +25,7 @@ export interface TopicRankBumpChartProps {
 export function TopicRankBumpChart({ data, topN = 6 }: TopicRankBumpChartProps) {
   // Calculate topic rankings over time
   const rankData = useMemo(() => {
-    if (!data || data.length < 2) return { chartData: [], topTopics: [] };
+    if (!data || !Array.isArray(data) || data.length < 2) return { chartData: [], topTopics: [] };
 
     // First pass: collect all topic counts per day
     const dailyTopicCounts: Record<string, Record<string, number>> = {};

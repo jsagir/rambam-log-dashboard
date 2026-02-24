@@ -110,11 +110,34 @@ async function processLogs() {
           parsed.interactions = parsed.interactions.map(enrichInteraction);
         }
 
+        // Create anomalies field from parsed.summary.anomaly_summary for component compatibility
+        const anomalies = {
+          summary: {
+            critical_count: parsed.summary?.anomaly_summary?.critical ?
+              Object.values(parsed.summary.anomaly_summary.critical).reduce((a, b) => a + b, 0) : 0,
+            warning_count: parsed.summary?.anomaly_summary?.warnings ?
+              Object.values(parsed.summary.anomaly_summary.warnings).reduce((a, b) => a + b, 0) : 0,
+          },
+          metrics: {
+            languages: parsed.summary?.languages ? {
+              hebrew: parsed.summary.languages.filter(l => l.includes('he')).length || parsed.interactions?.filter(i => i.response_language?.includes('he')).length || 0,
+              english: parsed.summary.languages.filter(l => l.includes('en')).length || parsed.interactions?.filter(i => i.response_language?.includes('en')).length || 0,
+              null: parsed.summary.languages.filter(l => !l || l === 'unknown').length || 0,
+            } : { hebrew: 0, english: 0, null: 0 },
+            latencies: {
+              first_response: {
+                avg: parsed.summary?.latency_stats?.generation_start_ms?.avg || 0,
+              },
+            },
+          },
+        };
+
         results.push({
           filename,
           log_date: parsed.log_date,
           time_range: parsed.time_range,
           parsed,
+          anomalies,
         });
 
         console.log(`  ✅ ${filename} processed`);
