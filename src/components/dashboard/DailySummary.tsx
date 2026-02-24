@@ -13,7 +13,7 @@ export interface DailySummaryProps {
 
 export function DailySummary({ data }: DailySummaryProps) {
   const summary = useMemo(() => {
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
       return "No data available to generate summary.";
     }
 

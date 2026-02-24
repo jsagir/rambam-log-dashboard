@@ -14,6 +14,10 @@ export interface TopicQualityTreemapProps {
 export function TopicQualityTreemap({ data }: TopicQualityTreemapProps) {
   // Calculate topic volumes and quality scores
   const treemapData = useMemo(() => {
+    if (!data || data.length === 0) {
+      return { name: 'Topics', children: [] };
+    }
+
     const topicStats: Record<string, { count: number; correctCount: number; partialCount: number; incorrectCount: number }> = {};
 
     data.forEach((day) => {

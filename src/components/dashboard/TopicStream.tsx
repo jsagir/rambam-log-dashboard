@@ -25,6 +25,8 @@ export interface TopicStreamProps {
 export function TopicStream({ data, onTopicClick }: TopicStreamProps) {
   // Transform data into streamgraph format
   const streamData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
     // Collect all topics across all days
     const allTopics = new Set<string>();
     data.forEach((day) => {
