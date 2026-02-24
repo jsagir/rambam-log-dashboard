@@ -1,15 +1,30 @@
-# Rambam Log Analytics Dashboard
+# Rambam System Dashboard
 
 ## Project Overview
 
-A live web dashboard for analyzing interaction logs from the Rambam (Maimonides) AI holographic system at the Museum of Tolerance Jerusalem.
+A clean, visual dashboard showing activity and performance data from the Rambam (Maimonides) AI holographic experience at the Museum of Tolerance Jerusalem.
 
-## Purpose
+**Key Design Principles:**
+- **No uploads** - Logs are pre-loaded in the `/logs` folder
+- **Data visualization** - Charts and graphs instead of raw numbers
+- **Simple English** - No technical jargon, plain language for all audiences
+- **Executive focus** - Key insights and trends, not detailed technical data
 
-This dashboard provides **real-time log analysis** with dual-layer evaluation:
+## How It Works
 
-1. **Content Quality Analysis** — Evaluating answer accuracy against Rambam's actual writings, persona consistency, guardrail effectiveness, and halachic correctness
-2. **Technical Anomaly Detection** — Identifying language detection failures, LLM errors, TTS issues, latency spikes, persona breaks, and session health problems
+1. **Add Logs** — Place Rambam log files (`.txt` or `.json`) in the `/logs` folder
+2. **Auto-Load** — Dashboard automatically processes all logs on startup
+3. **Visualize** — Data is transformed into simple charts and graphs
+4. **Insights** — Key findings displayed in plain English
+
+## What You See
+
+- **Visitor engagement** - How many people are talking to Rambam
+- **Language preferences** - Hebrew vs English conversations
+- **Activity trends** - Are visits increasing or decreasing?
+- **Response speed** - How fast Rambam answers
+- **System health** - Is everything working well?
+- **Items to review** - Any issues that need attention
 
 ## Tech Stack
 
