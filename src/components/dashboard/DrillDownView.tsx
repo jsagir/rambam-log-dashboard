@@ -117,7 +117,7 @@ export function DrillDownView({ data }: DrillDownViewProps) {
         <div className="flex gap-2 flex-wrap">
           {safeData.map((day) => (
             <button
-              key={day.log_date}
+              key={day.filename || day.log_date}
               onClick={() => setSelectedDate(day.log_date)}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 selectedDate === day.log_date
