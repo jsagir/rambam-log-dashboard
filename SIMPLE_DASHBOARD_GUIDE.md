@@ -22,21 +22,47 @@ logs/
 
 ## How to Add New Log Files
 
-When you have new log files, follow these steps:
+### Option A: Using Gemini AI Extraction (RECOMMENDED)
 
-### 1. Add the log file to the repo
+The **smart way** - uses Google's Gemini AI to intelligently classify and extract data:
 
 ```bash
-# Copy new log file to logs directory
-cp /path/to/new-log.txt logs/
+# 1. Add log file to repo
+cp /path/to/new-log.txt logs/YYYYMMDD.txt
 
-# Add to git
-git add logs/new-log.txt
-git commit -m "Add log file for [DATE]"
-git push
+# 2. Run Gemini extraction
+python3 python/gemini_extract.py logs/YYYYMMDD.txt
+
+# 3. Copy the output and paste into src/app/simple-dashboard/page.tsx
+#    - Add interactions to INTERACTIONS array
+#    - Add daily stats to DAILY_TREND array
+#    - Update TOPIC_TREND manually
+
+# 4. Commit and deploy
+git add logs/YYYYMMDD.txt src/app/simple-dashboard/page.tsx
+git commit -m "feat: Add log data for YYYY-MM-DD"
+git push origin main
 ```
 
-### 2. Process the log and extract interactions
+**What Gemini does automatically:**
+- ✅ Classifies question types (Closed, Open, Generic, etc.)
+- ✅ Identifies topics (Kashrut, Interfaith, Haredi/Army, etc.)
+- ✅ Detects sensitivity levels (low, medium, high, critical)
+- ✅ Extracts VIP names from greetings
+- ✅ Identifies anomalies (latency spikes, sensitive topics)
+- ✅ Formats as ready-to-paste TypeScript code
+
+**Requirements:**
+```bash
+pip install google-generativeai python-dotenv
+```
+
+Create `.env` file:
+```
+GOOGLE_AI_API_KEY=your-api-key-here
+```
+
+### Option B: Manual Method
 
 Tell me: **"Add new log file `logs/FILENAME.txt` to simple dashboard"**
 

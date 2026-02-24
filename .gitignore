@@ -55,3 +55,4 @@ ENV/
 /temp/
 /tmp/
 *.log
+.env
