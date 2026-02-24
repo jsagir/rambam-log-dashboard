@@ -1,68 +1,98 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Activity, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Activity, AlertCircle, Calendar } from 'lucide-react';
 import type { ParsedLog, AnomalyReport, DashboardStats } from '@/types/rambam';
 import { getHealthStatus } from '@/lib/utils';
 import { TimelineChart } from '@/components/dashboard/TimelineChart';
 import { LogViewer } from '@/components/dashboard/LogViewer';
+import { MultiDayComparison } from '@/components/dashboard/MultiDayComparison';
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<'single' | 'multi'>('single');
   const [parsedLog, setParsedLog] = useState<ParsedLog | null>(null);
   const [anomalies, setAnomalies] = useState<AnomalyReport | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [multiDayData, setMultiDayData] = useState<any[]>([]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFile = e.target.files?.[0];
-    if (uploadedFile) {
-      setFile(uploadedFile);
+    if (mode === 'single') {
+      const uploadedFile = e.target.files?.[0];
+      if (uploadedFile) {
+        setFile(uploadedFile);
+      }
+    } else {
+      const uploadedFiles = e.target.files;
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        setFiles(uploadedFiles);
+      }
     }
-  }, []);
+  }, [mode]);
 
   const analyzeLog = useCallback(async () => {
-    if (!file) return;
+    if (mode === 'single' && !file) return;
+    if (mode === 'multi' && !files) return;
 
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      if (mode === 'single') {
+        const formData = new FormData();
+        formData.append('file', file!);
 
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        body: formData,
-      });
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData,
+        });
 
-      if (!response.ok) {
-        throw new Error('Analysis failed');
+        if (!response.ok) {
+          throw new Error('Analysis failed');
+        }
+
+        const result = await response.json();
+        setParsedLog(result.parsed);
+        setAnomalies(result.anomalies);
+
+        // Compute stats
+        const healthStatus = getHealthStatus(
+          result.anomalies.summary.critical_count,
+          result.anomalies.summary.warning_count
+        );
+
+        setStats({
+          totalInteractions: result.parsed.total_interactions,
+          languages: result.anomalies.metrics.languages,
+          sessionCount: result.parsed.sessions?.length || 0,
+          healthStatus,
+          criticalCount: result.anomalies.summary.critical_count,
+          warningCount: result.anomalies.summary.warning_count,
+        });
+      } else {
+        // Multi-file mode
+        const formData = new FormData();
+        Array.from(files!).forEach(f => formData.append('files', f));
+
+        const response = await fetch('/api/analyze-batch', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Batch analysis failed');
+        }
+
+        const result = await response.json();
+        setMultiDayData(result.results.filter((r: any) => !r.error));
       }
-
-      const result = await response.json();
-      setParsedLog(result.parsed);
-      setAnomalies(result.anomalies);
-
-      // Compute stats
-      const healthStatus = getHealthStatus(
-        result.anomalies.summary.critical_count,
-        result.anomalies.summary.warning_count
-      );
-
-      setStats({
-        totalInteractions: result.parsed.total_interactions,
-        languages: result.anomalies.metrics.languages,
-        sessionCount: result.parsed.sessions?.length || 0,
-        healthStatus,
-        criticalCount: result.anomalies.summary.critical_count,
-        warningCount: result.anomalies.summary.warning_count,
-      });
     } catch (error) {
       console.error('Analysis error:', error);
-      alert('Failed to analyze log file');
+      alert('Failed to analyze log file(s)');
     } finally {
       setLoading(false);
     }
-  }, [file]);
+  }, [file, files, mode]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -103,14 +133,41 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex items-center gap-3 mb-4">
             <Upload className="h-6 w-6 text-gray-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Upload Log File</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Upload Log File(s)</h2>
           </div>
 
           <div className="space-y-4">
+            {/* Mode Selector */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setMode('single'); setFile(null); setFiles(null); setMultiDayData([]); }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  mode === 'single'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FileText className="h-4 w-4 inline mr-2" />
+                Single Day
+              </button>
+              <button
+                onClick={() => { setMode('multi'); setFile(null); setFiles(null); setParsedLog(null); setAnomalies(null); setStats(null); }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  mode === 'multi'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Calendar className="h-4 w-4 inline mr-2" />
+                Multi-Day Comparison
+              </button>
+            </div>
+
             <div className="flex items-center gap-4">
               <input
                 type="file"
                 accept=".txt,.json"
+                multiple={mode === 'multi'}
                 onChange={handleFileUpload}
                 className="block w-full text-sm text-gray-500
                   file:mr-4 file:py-2 file:px-4
@@ -122,16 +179,16 @@ export default function Dashboard() {
               />
               <button
                 onClick={analyzeLog}
-                disabled={!file || loading}
+                disabled={(mode === 'single' && !file) || (mode === 'multi' && !files) || loading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md
                   hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed
-                  transition-colors font-medium"
+                  transition-colors font-medium whitespace-nowrap"
               >
-                {loading ? 'Analyzing...' : 'Analyze'}
+                {loading ? 'Analyzing...' : mode === 'single' ? 'Analyze' : 'Compare'}
               </button>
             </div>
 
-            {file && (
+            {mode === 'single' && file && (
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <FileText className="h-4 w-4" />
                 <span>{file.name}</span>
@@ -140,11 +197,23 @@ export default function Dashboard() {
                 </span>
               </div>
             )}
+
+            {mode === 'multi' && files && (
+              <div className="text-sm text-gray-600">
+                <FileText className="h-4 w-4 inline mr-2" />
+                <span>{files.length} files selected</span>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Multi-Day Comparison */}
+        {mode === 'multi' && multiDayData.length > 0 && (
+          <MultiDayComparison data={multiDayData} />
+        )}
+
         {/* Stats Overview */}
-        {stats && (
+        {mode === 'single' && stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
               title="Total Interactions"

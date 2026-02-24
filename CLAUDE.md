@@ -59,6 +59,33 @@ This enables:
 - Daily reports with correct dates
 - SOP compliance (daily log verification)
 
+### 3. Multi-Day Analysis (NEW)
+
+The dashboard supports two modes:
+- **Single Day**: Analyze one log file in detail
+- **Multi-Day Comparison**: Upload multiple log files for trend analysis
+
+**Multi-day features:**
+- Batch upload API (`/api/analyze-batch`)
+- Chronological sorting by log_date across all files
+- Week-over-week comparison charts
+- Daily summary table with health scores
+- Trend detection (increasing/decreasing patterns)
+
+**Use cases:**
+- Compare weekday vs weekend activity
+- Identify performance degradation over time
+- Track improvement after system updates
+- Generate weekly reports for management
+- Correlate issues with specific dates/events
+
+**Implementation rules:**
+- All logs sorted by date in multi-day view
+- Each log processed independently then combined
+- Failed logs reported but don't block batch
+- Charts show trends across all dates
+- Health scores computed per day for comparison
+
 ## Architecture Rules
 
 ### File Structure
