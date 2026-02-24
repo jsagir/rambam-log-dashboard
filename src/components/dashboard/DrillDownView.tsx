@@ -10,7 +10,7 @@ import { SessionFlowMap } from './SessionFlowMap';
 import { ConversationFeed } from './ConversationFeed';
 import { Search, Filter, Clock } from 'lucide-react';
 import { type InteractionData, type SessionData } from '@/types/dashboard';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ComposedChart, Bar, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, ReferenceArea } from 'recharts';
 
 export interface DrillDownViewProps {
   data: any[];
@@ -76,6 +76,22 @@ export function DrillDownView({ data }: DrillDownViewProps) {
       is_greeting: i.is_greeting || false,
     }));
   }, [filtered]);
+
+  // Calculate confidence band for latency (baseline ± 1 std dev)
+  const latencyStats = useMemo(() => {
+    const latencies = interactionCards.map((i: InteractionData) => i.latency);
+    if (latencies.length === 0) return { baseline: 0, lower: 0, upper: 0 };
+
+    const avg = latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length;
+    const variance = latencies.reduce((sum: number, val: number) => sum + Math.pow(val - avg, 2), 0) / latencies.length;
+    const stdDev = Math.sqrt(variance);
+
+    return {
+      baseline: Math.round(avg),
+      lower: Math.max(0, Math.round(avg - stdDev)),
+      upper: Math.round(avg + stdDev),
+    };
+  }, [interactionCards]);
 
   // Convert sessions to SessionData format
   const sessionCards: SessionData[] = useMemo(() => {
@@ -181,42 +197,84 @@ export function DrillDownView({ data }: DrillDownViewProps) {
         </div>
       </div>
 
-      {/* Latency Timeline */}
+      {/* Latency Timeline with Confidence Band */}
       {interactionCards.length > 0 && (
         <div>
-          <SectionTitle title="Latency Timeline" />
+          <SectionTitle
+            title="Latency Timeline with Confidence Band"
+            subtitle={`Baseline: ${latencyStats.baseline}ms · Expected range: ${latencyStats.lower}-${latencyStats.upper}ms`}
+          />
           <div className="bg-card border border-border rounded-lg p-5">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={interactionCards.map((i: InteractionData) => ({ name: `#${i.id}`, latency: i.latency, topic: i.topic }))}>
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={interactionCards.map((i: InteractionData) => ({ name: `#${i.id}`, latency: i.latency, topic: i.topic, anomaly: i.anomalies.length > 0 }))}>
+                <defs>
+                  <linearGradient id="confidenceBand" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#c8a961" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#c8a961" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a30" />
                 <XAxis dataKey="name" tick={{ fill: '#666', fontSize: 10 }} />
                 <YAxis tick={{ fill: '#666', fontSize: 10 }} unit="ms" />
+
+                {/* Confidence Band */}
+                <ReferenceArea
+                  y1={latencyStats.lower}
+                  y2={latencyStats.upper}
+                  fill="url(#confidenceBand)"
+                  fillOpacity={0.3}
+                />
+
+                {/* Baseline */}
+                <ReferenceLine
+                  y={latencyStats.baseline}
+                  stroke="#c8a961"
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.5}
+                  label={{ value: 'Baseline', position: 'right', fill: '#c8a961', fontSize: 10 }}
+                />
+
+                {/* Critical threshold */}
+                <ReferenceLine
+                  y={3000}
+                  stroke="#ef4444"
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.5}
+                  label={{ value: 'Critical (3s)', position: 'right', fill: '#ef4444', fontSize: 10 }}
+                />
+
                 <Tooltip
                   contentStyle={{ background: '#1a1a1f', border: '1px solid #333', borderRadius: 8, fontSize: 11 }}
                   formatter={(value: number) => `${value}ms`}
                 />
+
                 <Bar dataKey="latency" radius={[4, 4, 0, 0]}>
-                  {interactionCards.map((entry: InteractionData, i: number) => (
-                    <Cell
-                      key={`cell-${i}`}
-                      fill={entry.latency > 3000 ? '#ef4444' : entry.latency > 2000 ? '#f59e0b' : '#c8a96188'}
-                    />
-                  ))}
+                  {interactionCards.map((entry: InteractionData, i: number) => {
+                    // Color by anomaly status and threshold
+                    let fill = '#c8a96188'; // Normal
+                    if (entry.anomalies.length > 0) fill = '#ef4444'; // Anomaly = red
+                    else if (entry.latency > 3000) fill = '#ef4444'; // Critical = red
+                    else if (entry.latency > latencyStats.upper) fill = '#f59e0b'; // Above confidence = yellow
+
+                    return (
+                      <Cell key={`cell-${i}`} fill={fill} />
+                    );
+                  })}
                 </Bar>
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
             <div className="flex gap-4 mt-3 justify-center text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-gold/60" />
-                <span>Normal (&lt; 2s)</span>
+                <span>Normal (within confidence band)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                <span>&gt; 2s (Slow)</span>
+                <span>Above expected range</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-red-500/60" />
-                <span>&gt; 3s (Spike)</span>
+                <span>Critical (&gt; 3s or anomaly)</span>
               </div>
             </div>
           </div>
