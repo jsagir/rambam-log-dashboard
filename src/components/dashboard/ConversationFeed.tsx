@@ -22,6 +22,8 @@ export function ConversationFeed({ interactions }: ConversationFeedProps) {
 
   // Score interactions for "Notable" sort
   const scoredInteractions = useMemo(() => {
+    if (!interactions || !Array.isArray(interactions)) return [];
+
     return interactions.map(i => {
       let notableScore = 0;
 

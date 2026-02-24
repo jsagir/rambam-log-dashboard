@@ -23,7 +23,7 @@ export interface QuestionCardProps {
 
 export function QuestionCard({ interaction, expanded, onToggle }: QuestionCardProps) {
   const isRtl = interaction.lang === 'he-IL' || interaction.lang === 'he';
-  const hasAnomalies = interaction.anomalies.length > 0;
+  const hasAnomalies = interaction.anomalies && interaction.anomalies.length > 0;
 
   return (
     <div
@@ -74,7 +74,7 @@ export function QuestionCard({ interaction, expanded, onToggle }: QuestionCardPr
             ⭐ VIP: {interaction.vip}
           </Badge>
         )}
-        {interaction.anomalies.map((anomaly, i) => (
+        {interaction.anomalies && interaction.anomalies.map((anomaly, i) => (
           <Badge key={i} variant="error" size="sm">
             {anomaly}
           </Badge>

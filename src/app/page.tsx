@@ -19,7 +19,7 @@ export default function Dashboard() {
           throw new Error('Failed to load dashboard data');
         }
 
-        if (result.results && result.results.length > 0) {
+        if (result?.results && Array.isArray(result.results) && result.results.length > 0) {
           setData(result.results);
         } else {
           setError('No log data available yet. Logs will be processed during the next deployment.');

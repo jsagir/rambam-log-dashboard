@@ -13,6 +13,14 @@ export interface SessionFlowMapProps {
 }
 
 export function SessionFlowMap({ sessions }: SessionFlowMapProps) {
+  if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground text-center py-4">
+        No session data available
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-3 flex-wrap">
       {sessions.map((session) => {
