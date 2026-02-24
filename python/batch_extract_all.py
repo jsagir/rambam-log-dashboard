@@ -139,12 +139,36 @@ def main():
         # Daily stats
         total_interactions = len(interactions)
         questions = sum(1 for i in interactions if not i.get("is_greeting", False))
-        hebrew_count = sum(1 for i in interactions if i.get("language", "").startswith("he"))
-        english_count = sum(1 for i in interactions if i.get("language", "").startswith("en"))
+
+        # Language counts from classification or response_language
+        hebrew_count = 0
+        english_count = 0
+        for i in interactions:
+            classification = i.get("classification", {})
+            lang = classification.get("language", i.get("response_language", "unknown")) or "unknown"
+            if lang.startswith("he"):
+                hebrew_count += 1
+            elif lang.startswith("en"):
+                english_count += 1
 
         # Average latency
         latencies = [i.get("latencies", {}).get("generation_start_ms", 0) for i in interactions]
         avg_latency = int(sum(latencies) / len(latencies)) if latencies else 0
+
+        # Count anomalies from all interactions
+        anomaly_count = 0
+        critical_count = 0
+        for i in interactions:
+            # Check for latency spikes
+            gen_latency = i.get("latencies", {}).get("generation_start_ms", 0)
+            if gen_latency > 3000:
+                anomaly_count += 1
+
+            # Check for critical sensitivity in classification
+            classification = i.get("classification", {})
+            if classification.get("sensitivity") == "critical":
+                critical_count += 1
+                anomaly_count += 1
 
         # Format date as "Feb 15"
         try:
@@ -160,10 +184,10 @@ def main():
             "hebrew": hebrew_count,
             "english": english_count,
             "avgLatency": avg_latency,
-            "anomalies": 0,  # TODO: calculate from interactions
-            "critical": 0,
-            "inquiryPct": 30,  # Placeholder
-            "depthPct": 40  # Placeholder
+            "anomalies": anomaly_count,
+            "critical": critical_count,
+            "inquiryPct": 30,  # Placeholder - would need mode detection
+            "depthPct": 40  # Placeholder - would need depth analysis
         })
 
     # Output results
