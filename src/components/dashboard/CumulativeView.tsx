@@ -26,15 +26,18 @@ export interface CumulativeViewProps {
 const SENSITIVITY_COLORS = { low: '#6b7280', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626' };
 
 export function CumulativeView({ data }: CumulativeViewProps) {
+  // Guard against undefined/invalid data
+  const safeData = data && Array.isArray(data) ? data : [];
+
   // Calculate cumulative stats
-  const totalInteractions = data.reduce((sum, day) => sum + (day.parsed?.summary?.total_interactions || 0), 0);
-  const totalQuestions = data.reduce((sum, day) => sum + (day.parsed?.summary?.total_questions || 0), 0);
-  const totalSessions = data.reduce((sum, day) => sum + (day.parsed?.summary?.sessions || 0), 0);
+  const totalInteractions = safeData.reduce((sum, day) => sum + (day.parsed?.summary?.total_interactions || 0), 0);
+  const totalQuestions = safeData.reduce((sum, day) => sum + (day.parsed?.summary?.total_questions || 0), 0);
+  const totalSessions = safeData.reduce((sum, day) => sum + (day.parsed?.summary?.sessions || 0), 0);
 
   // Calculate average latency weighted by interaction count
   let totalLatency = 0;
   let totalSamples = 0;
-  data.forEach((day) => {
+  safeData.forEach((day) => {
     const stats = day.parsed?.summary?.latency_stats?.generation_start_ms;
     if (stats) {
       totalLatency += stats.avg * stats.samples;
@@ -45,7 +48,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
 
   // Engagement trend data (Hebrew vs English over time)
   const engagementTrend = useMemo(() => {
-    return data.map((day) => {
+    return safeData.map((day) => {
       const summary = day.parsed?.summary;
       const lang = summary?.language_distribution || {};
       return {
@@ -60,7 +63,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
   // Topic distribution across all days
   const topicDistribution = useMemo(() => {
     const topicCounts: Record<string, number> = {};
-    data.forEach((day) => {
+    safeData.forEach((day) => {
       const interactions = day.parsed?.interactions || [];
       interactions.forEach((i: any) => {
         const topic = i.topic || 'Uncategorized';
@@ -76,7 +79,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
   // Question type distribution
   const typeDistribution = useMemo(() => {
     const typeCounts: Record<string, number> = {};
-    data.forEach((day) => {
+    safeData.forEach((day) => {
       const interactions = day.parsed?.interactions || [];
       interactions.forEach((i: any) => {
         const type = i.classification?.question_type || 'unknown';
@@ -91,7 +94,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
   // Sensitivity radar
   const sensitivityRadar = useMemo(() => {
     const counts = { low: 0, medium: 0, high: 0, critical: 0 };
-    data.forEach((day) => {
+    safeData.forEach((day) => {
       const interactions = day.parsed?.interactions || [];
       interactions.forEach((i: any) => {
         const sensitivity = i.sensitivity || 'low';
@@ -109,7 +112,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
 
   // Daily latency trend
   const latencyTrend = useMemo(() => {
-    return data.map((day) => {
+    return safeData.map((day) => {
       const summary = day.parsed?.summary;
       const latency = summary?.latency_stats?.generation_start_ms?.avg || 0;
       return {
@@ -122,19 +125,23 @@ export function CumulativeView({ data }: CumulativeViewProps) {
 
   // Sparkline data for KPI cards (daily trends)
   const interactionsSparkline = useMemo(() => {
-    return data.map(day => day.parsed?.summary?.total_interactions || 0);
+    if (!data || !Array.isArray(data)) return [];
+    return safeData.map(day => day.parsed?.summary?.total_interactions || 0);
   }, [data]);
 
   const questionsSparkline = useMemo(() => {
-    return data.map(day => day.parsed?.summary?.total_questions || 0);
+    if (!data || !Array.isArray(data)) return [];
+    return safeData.map(day => day.parsed?.summary?.total_questions || 0);
   }, [data]);
 
   const sessionsSparkline = useMemo(() => {
-    return data.map(day => day.parsed?.summary?.sessions || 0);
+    if (!data || !Array.isArray(data)) return [];
+    return safeData.map(day => day.parsed?.summary?.sessions || 0);
   }, [data]);
 
   const latencySparkline = useMemo(() => {
-    return data.map(day => {
+    if (!data || !Array.isArray(data)) return [];
+    return safeData.map(day => {
       const latency = day.parsed?.summary?.latency_stats?.generation_start_ms?.avg || 0;
       return Math.round(latency);
     });
@@ -146,7 +153,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
     <div className="space-y-6">
       {/* KPIs */}
       <div>
-        <SectionTitle title="Overview" subtitle={`${data.length} days analyzed`} />
+        <SectionTitle title="Overview" subtitle={`${safeData.length} days analyzed`} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Total Conversations"
@@ -252,7 +259,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
       </div>
 
       {/* Topic Rank Bump Chart */}
-      {data.length >= 2 && (
+      {safeData.length >= 2 && (
         <div>
           <SectionTitle
             title="Topic Popularity Trends"
