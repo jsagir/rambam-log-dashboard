@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { ParsedLog, AnomalyReport } from '@/types/rambam';
+import { AccumulativeKPIs } from './AccumulativeKPIs';
 
 interface MultiDayData {
   filename: string;
@@ -39,6 +40,9 @@ export function MultiDayComparison({ data }: MultiDayComparisonProps) {
 
   return (
     <div className="space-y-6 mb-8">
+      {/* Accumulative KPIs */}
+      <AccumulativeKPIs data={data} />
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

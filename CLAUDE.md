@@ -86,6 +86,42 @@ The dashboard supports two modes:
 - Charts show trends across all dates
 - Health scores computed per day for comparison
 
+### 4. Accumulative KPIs (EXECUTIVE SUMMARY)
+
+**Purpose**: Provide high-level metrics aggregated across all uploaded logs for management reporting and trend analysis.
+
+**Key KPIs displayed:**
+- **Total interactions** across all days (grand total)
+- **Average interactions per day** (mean daily volume)
+- **Overall health score** (weighted average across all days)
+- **Activity trend** (first half vs second half comparison: up/down/stable with %)
+- **Language distribution** (Hebrew/English/Unknown with percentages)
+- **Average response time** (weighted by interaction count for accuracy)
+- **Total sessions** across all logs
+- **Critical issues and warnings** (cumulative counts)
+- **Best/worst/busiest days** (performance highlights)
+
+**Calculation principles:**
+- **Weighted averages**: Response time weighted by interaction count (not simple mean)
+- **Trend detection**: Compares first half of date range vs second half to identify growth/decline
+- **Health scoring**: Per-day scores based on critical/warning counts, then averaged
+- **Date range display**: Shows "YYYY-MM-DD to YYYY-MM-DD" with day count
+
+**Visual components:**
+- Executive summary banner (gradient blue) with top-line metrics
+- KPI cards with icons (Activity, Clock, Users, etc.)
+- Performance highlights section with best/worst/busiest days
+- Quick insights box with emoji-formatted bullet points
+
+**Use cases:**
+- Weekly management reports showing overall system performance
+- Identifying long-term trends (week-over-week growth)
+- Spotting performance degradation patterns
+- Demonstrating improvement after optimizations
+- Comparing different time periods (holiday vs regular days)
+
+**Implementation**: `src/components/dashboard/AccumulativeKPIs.tsx` integrated into multi-day view
+
 ## Architecture Rules
 
 ### File Structure
