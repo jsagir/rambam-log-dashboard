@@ -7,8 +7,9 @@ import React, { useState, useMemo } from 'react';
 import { SectionTitle } from '@/components/shared/SectionTitle';
 import { QuestionCard } from './QuestionCard';
 import { SessionFlowMap } from './SessionFlowMap';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Clock } from 'lucide-react';
 import { type InteractionData, type SessionData } from '@/types/dashboard';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export interface DrillDownViewProps {
   data: any[];
@@ -178,6 +179,48 @@ export function DrillDownView({ data }: DrillDownViewProps) {
           Showing {filtered.length} of {interactions.length} interactions
         </div>
       </div>
+
+      {/* Latency Timeline */}
+      {interactionCards.length > 0 && (
+        <div>
+          <SectionTitle title="Latency Timeline" />
+          <div className="bg-card border border-border rounded-lg p-5">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={interactionCards.map((i: InteractionData) => ({ name: `#${i.id}`, latency: i.latency, topic: i.topic }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a30" />
+                <XAxis dataKey="name" tick={{ fill: '#666', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#666', fontSize: 10 }} unit="ms" />
+                <Tooltip
+                  contentStyle={{ background: '#1a1a1f', border: '1px solid #333', borderRadius: 8, fontSize: 11 }}
+                  formatter={(value: number) => `${value}ms`}
+                />
+                <Bar dataKey="latency" radius={[4, 4, 0, 0]}>
+                  {interactionCards.map((entry: InteractionData, i: number) => (
+                    <Cell
+                      key={`cell-${i}`}
+                      fill={entry.latency > 3000 ? '#ef4444' : entry.latency > 2000 ? '#f59e0b' : '#c8a96188'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex gap-4 mt-3 justify-center text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-gold/60" />
+                <span>Normal (&lt; 2s)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                <span>&gt; 2s (Slow)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500/60" />
+                <span>&gt; 3s (Spike)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Question Cards */}
       <div>
