@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Upload, FileText, Activity, AlertCircle } from 'lucide-react';
 import type { ParsedLog, AnomalyReport, DashboardStats } from '@/types/rambam';
 import { getHealthStatus } from '@/lib/utils';
+import { TimelineChart } from '@/components/dashboard/TimelineChart';
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
@@ -82,6 +83,21 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Log Date Banner */}
+        {parsedLog?.log_date && (
+          <div className="bg-blue-600 text-white rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Log Date: {parsedLog.log_date}</h2>
+              {parsedLog.time_range && (
+                <p className="text-sm text-blue-100">
+                  {new Date(parsedLog.time_range.start).toLocaleTimeString()} - {new Date(parsedLog.time_range.end).toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <FileText className="h-8 w-8 opacity-75" />
+          </div>
+        )}
+
         {/* Upload Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex items-center gap-3 mb-4">
@@ -212,6 +228,11 @@ export default function Dashboard() {
               />
             )}
           </>
+        )}
+
+        {/* Timeline Chart - Show trends over time */}
+        {parsedLog?.interactions && parsedLog.interactions.length > 0 && (
+          <TimelineChart interactions={parsedLog.interactions} />
         )}
 
         {/* Performance Metrics */}

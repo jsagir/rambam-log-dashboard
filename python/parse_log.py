@@ -160,6 +160,10 @@ def parse_log_file(file_path: str) -> List[Dict[str, Any]]:
     if current_interaction:
         interactions.append(current_interaction)
 
+    # CRITICAL: Sort interactions by timestamp (chronological order)
+    # This ensures trend analysis and daily patterns are accurate
+    interactions.sort(key=lambda x: x['timestamps'].get('stt') or '9999-12-31')
+
     # Post-process: compute latencies and concatenate responses
     for interaction in interactions:
         # Concatenate response
@@ -221,6 +225,21 @@ def group_into_sessions(interactions: List[Dict], gap_threshold_minutes: int = 3
     return sessions
 
 
+def extract_log_date(interactions: List[Dict]) -> str:
+    """Extract the date from the log file based on first interaction"""
+    if not interactions:
+        return None
+
+    first_ts = interactions[0]['timestamps'].get('stt')
+    if first_ts:
+        try:
+            dt = parse_timestamp(first_ts)
+            return dt.strftime('%Y-%m-%d') if dt else None
+        except:
+            return None
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description='Parse Rambam log files')
     parser.add_argument('log_file', help='Path to log file')
@@ -233,7 +252,26 @@ def main():
     interactions = parse_log_file(args.log_file)
     print(f"Found {len(interactions)} interactions")
 
+    # Extract log date for trend analysis
+    log_date = extract_log_date(interactions)
+    if log_date:
+        print(f"Log date: {log_date}")
+
+    # Get time range
+    time_range = {}
+    if interactions:
+        first_time = interactions[0]['timestamps'].get('stt')
+        last_time = interactions[-1]['timestamps'].get('stt') or interactions[-1]['timestamps'].get('finished')
+        if first_time and last_time:
+            time_range = {
+                'start': first_time,
+                'end': last_time,
+                'date': log_date
+            }
+
     output_data = {
+        'log_date': log_date,
+        'time_range': time_range,
         'total_interactions': len(interactions),
         'interactions': interactions
     }

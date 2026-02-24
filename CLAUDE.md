@@ -20,6 +20,45 @@ This dashboard provides **real-time log analysis** with dual-layer evaluation:
 - **Backend**: Next.js API routes for log processing
 - **Analysis Engine**: Python scripts (from skill) exposed via API
 
+## 🚨 CRITICAL RULES
+
+### 1. Chronological Ordering is MANDATORY
+
+**ALL log analysis MUST maintain chronological order by timestamp.**
+
+- **Parser requirement**: Interactions MUST be sorted by `timestamps.stt` in ascending order
+- **Reason**: Trend analysis, daily patterns, and session grouping depend on correct time sequencing
+- **Implementation**: `parse_log.py` sorts interactions after parsing: `interactions.sort(key=lambda x: x['timestamps'].get('stt'))`
+- **Display**: Dashboard MUST show log date prominently at the top
+- **Validation**: Always verify first interaction timestamp < last interaction timestamp
+
+**Why this matters:**
+- Boris and team need to see patterns throughout the day (morning peak, afternoon lull, etc.)
+- Performance degradation over time becomes visible
+- Session boundaries are time-based (30min gaps)
+- Correlating with museum events requires accurate timing
+- Multi-day trend analysis depends on correct ordering
+
+**Testing checklist:**
+- ✅ Parse log and verify interactions are time-ordered
+- ✅ Check first interaction is earliest timestamp
+- ✅ Check last interaction is latest timestamp
+- ✅ Timeline chart shows smooth progression
+- ✅ No timestamp jumps backwards
+
+### 2. Date Extraction and Display
+
+Every parsed log MUST include:
+- `log_date`: YYYY-MM-DD format extracted from first interaction
+- `time_range`: Start and end times for the log
+- Dashboard banner showing date prominently
+
+This enables:
+- Multi-log comparison (yesterday vs today)
+- Historical trend analysis
+- Daily reports with correct dates
+- SOP compliance (daily log verification)
+
 ## Architecture Rules
 
 ### File Structure
@@ -54,18 +93,29 @@ rambam-log-dashboard/
 The dashboard integrates the existing Rambam log analysis skill:
 
 1. **Log Upload** → User uploads .txt or .json log file
-2. **Parse** → Python script extracts structured interactions
-3. **Detect Anomalies** → Automated technical issue detection
-4. **Content Review** → AI-assisted quality evaluation
-5. **Visualize** → Real-time dashboard with insights
+2. **Parse** → Python script extracts structured interactions **IN CHRONOLOGICAL ORDER**
+3. **Extract Date** → Identify log date and time range for trend analysis
+4. **Detect Anomalies** → Automated technical issue detection
+5. **Content Review** → AI-assisted quality evaluation
+6. **Visualize** → Real-time dashboard with insights and timeline trends
+
+**CRITICAL**: Step 2 MUST sort all interactions by timestamp before proceeding to analysis.
 
 ### Dashboard Views
 
 #### 1. Overview Panel
+- **Log Date Banner** - Prominently displays date and time range (CRITICAL for daily logs)
 - Total interactions count
 - Languages breakdown (Hebrew/English/Unknown)
 - Session count and duration
 - Overall health status (🟢 Healthy | 🟡 Issues | 🔴 Critical)
+
+#### 1.5. Timeline Trend Chart (NEW)
+- Hourly interaction volume throughout the day
+- Average latency trends over time
+- Visual identification of peak hours
+- Performance degradation detection
+- **Use case**: "Is the system slower in the afternoon?" "What are our peak visitor hours?"
 
 #### 2. Technical Health Monitor
 - Real-time anomaly alerts (Critical, Warning, Operational)
@@ -194,9 +244,10 @@ Real-time metrics displayed
 ### Deployment
 
 - **Development**: `npm run dev` on localhost:3000
-- **Production**: Deploy to Vercel/Render with environment variables
-- **Python**: Ensure Python 3.9+ available in deployment environment
+- **Production**: Deploy to Render as Web Service (see render.yaml)
+- **Python**: Python 3.11 installed via build.sh
 - **Dependencies**: Requirements.txt for Python, package.json for Node
+- **Auto-deploy**: Render redeploys automatically on git push to main
 
 ## Getting Started
 

@@ -47,7 +47,15 @@ export interface Session {
   interactions: Interaction[];
 }
 
+export interface TimeRange {
+  start: string;
+  end: string;
+  date: string;
+}
+
 export interface ParsedLog {
+  log_date: string | null;
+  time_range: TimeRange;
   total_interactions: number;
   interactions: Interaction[];
   sessions?: Session[];
