@@ -139,15 +139,6 @@ export function CumulativeView({ data }: CumulativeViewProps) {
     });
   }, [data]);
 
-  // Collect all critical anomalies
-  const criticalIssues = (data || []).flatMap((day) => {
-    const anomalies = day.parsed?.summary?.anomaly_summary?.critical || {};
-    const date = day.log_date || day.filename;
-    return Object.entries(anomalies).flatMap(([type, count]) =>
-      Array(count as number).fill({ date, type })
-    );
-  });
-
   const TYPE_COLORS = ['#c8a961', '#7da87b', '#6e8fae', '#b07da8', '#ae8a6e', '#f472b6', '#60a5fa'];
 
   return (
@@ -414,44 +405,14 @@ export function CumulativeView({ data }: CumulativeViewProps) {
         </div>
       </div>
 
-      {/* Critical Issues Log */}
-      {criticalIssues.length > 0 && (
-        <div>
-          <SectionTitle
-            title="Critical Issues Log"
-            subtitle={`${criticalIssues.length} critical anomalies detected`}
-          />
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-background/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Issue Type
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {criticalIssues.slice(0, 20).map((issue, i) => (
-                  <tr key={i} className="hover:bg-background/50">
-                    <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
-                      {issue.date}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        {issue.type}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Anomaly Feed - Bidirectional Navigation */}
+      <div>
+        <SectionTitle
+          title="Anomaly Feed"
+          subtitle="System events with links to affected conversations"
+        />
+        <AnomalyFeed data={data} />
+      </div>
 
       {/* Daily Stats Table */}
       <div>
