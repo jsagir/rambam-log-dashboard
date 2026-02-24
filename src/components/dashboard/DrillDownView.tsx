@@ -17,7 +17,10 @@ export interface DrillDownViewProps {
 }
 
 export function DrillDownView({ data }: DrillDownViewProps) {
-  const [selectedDate, setSelectedDate] = useState(data[0]?.log_date || '');
+  // Guard against undefined/invalid data
+  const safeData = data && Array.isArray(data) ? data : [];
+
+  const [selectedDate, setSelectedDate] = useState(safeData[0]?.log_date || '');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterTopic, setFilterTopic] = useState('all');
   const [filterSensitivity, setFilterSensitivity] = useState('all');
@@ -25,8 +28,8 @@ export function DrillDownView({ data }: DrillDownViewProps) {
 
   // Find selected day data
   const selectedDay = useMemo(
-    () => data.find((d) => d.log_date === selectedDate),
-    [data, selectedDate]
+    () => safeData.find((d) => d.log_date === selectedDate),
+    [safeData, selectedDate]
   );
 
   // Extract interactions and sessions
@@ -112,7 +115,7 @@ export function DrillDownView({ data }: DrillDownViewProps) {
       <div>
         <SectionTitle title="Select Date" />
         <div className="flex gap-2 flex-wrap">
-          {data.map((day) => (
+          {safeData.map((day) => (
             <button
               key={day.log_date}
               onClick={() => setSelectedDate(day.log_date)}

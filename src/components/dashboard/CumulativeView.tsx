@@ -458,7 +458,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data.map((day, i) => {
+              {safeData.map((day, i) => {
                 const summary = day.parsed?.summary;
                 const latency = summary?.latency_stats?.generation_start_ms?.avg || 0;
                 return (
