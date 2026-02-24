@@ -8,6 +8,7 @@ import { StatCard } from '@/components/shared/StatCard';
 import { SectionTitle } from '@/components/shared/SectionTitle';
 import { TopicStream } from './TopicStream';
 import { TopicQualityTreemap } from './TopicQualityTreemap';
+import { DailySummary } from './DailySummary';
 import { Activity, Clock, Users, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -117,6 +118,26 @@ export function CumulativeView({ data }: CumulativeViewProps) {
     }).filter(d => d.interactions > 0);
   }, [data]);
 
+  // Sparkline data for KPI cards (daily trends)
+  const interactionsSparkline = useMemo(() => {
+    return data.map(day => day.parsed?.summary?.total_interactions || 0);
+  }, [data]);
+
+  const questionsSparkline = useMemo(() => {
+    return data.map(day => day.parsed?.summary?.total_questions || 0);
+  }, [data]);
+
+  const sessionsSparkline = useMemo(() => {
+    return data.map(day => day.parsed?.summary?.sessions || 0);
+  }, [data]);
+
+  const latencySparkline = useMemo(() => {
+    return data.map(day => {
+      const latency = day.parsed?.summary?.latency_stats?.generation_start_ms?.avg || 0;
+      return Math.round(latency);
+    });
+  }, [data]);
+
   // Collect all critical anomalies
   const criticalIssues = data.flatMap((day) => {
     const anomalies = day.parsed?.summary?.anomaly_summary?.critical || {};
@@ -138,24 +159,31 @@ export function CumulativeView({ data }: CumulativeViewProps) {
             label="Total Conversations"
             value={totalInteractions}
             icon={Activity}
+            sparklineData={interactionsSparkline}
           />
           <StatCard
             label="Questions Asked"
             value={totalQuestions}
             icon={Users}
+            sparklineData={questionsSparkline}
           />
           <StatCard
             label="Sessions"
             value={totalSessions}
             icon={Activity}
+            sparklineData={sessionsSparkline}
           />
           <StatCard
             label="Avg Response Time"
             value={`${(avgLatency / 1000).toFixed(2)}s`}
             icon={Clock}
+            sparklineData={latencySparkline}
           />
         </div>
       </div>
+
+      {/* AI Daily Summary */}
+      <DailySummary data={data} />
 
       {/* Engagement Trend */}
       {engagementTrend.length > 0 && (

@@ -1,9 +1,10 @@
 // src/components/shared/StatCard.tsx
-// KPI stat card with icon and value
+// KPI stat card with icon, value, and optional sparkline
 
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import { Sparkline } from './Sparkline';
 
 export interface StatCardProps {
   label: string;
@@ -13,6 +14,7 @@ export interface StatCardProps {
     value: number;
     isPositive: boolean;
   };
+  sparklineData?: number[]; // 7-day trend data
   className?: string;
 }
 
@@ -21,6 +23,7 @@ export function StatCard({
   value,
   icon: Icon,
   trend,
+  sparklineData,
   className
 }: StatCardProps) {
   return (
@@ -28,7 +31,12 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm text-muted-foreground mb-1">{label}</p>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-2xl font-bold text-foreground">{value}</p>
+            {sparklineData && sparklineData.length > 1 && (
+              <Sparkline data={sparklineData} width={60} height={20} />
+            )}
+          </div>
           {trend && (
             <p className={cn(
               'text-xs mt-1',
