@@ -16,7 +16,7 @@ interface AccumulativeKPIsProps {
 
 export function AccumulativeKPIs({ data }: AccumulativeKPIsProps) {
   const kpis = useMemo(() => {
-    if (data.length === 0) return null;
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
 
     // Total interactions across all logs
     const totalInteractions = data.reduce((sum, d) => sum + d.parsed.total_interactions, 0);
