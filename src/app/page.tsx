@@ -12,17 +12,17 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadData() {
       try {
-        const response = await fetch('/api/dashboard-data');
+        const response = await fetch('/dashboard-data.json');
         const result = await response.json();
 
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to load dashboard');
+          throw new Error('Failed to load dashboard data');
         }
 
         if (result.results && result.results.length > 0) {
           setData(result.results);
         } else {
-          setError('No log data available. Please add log files to the logs folder.');
+          setError('No log data available yet. Logs will be processed during the next deployment.');
         }
       } catch (err: any) {
         console.error('Failed to load dashboard:', err);

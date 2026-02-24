@@ -9,6 +9,9 @@ npm install
 echo "🐍 Installing Python dependencies..."
 pip install -r python/requirements.txt
 
+echo "📊 Processing log files..."
+node scripts/process-logs.js
+
 echo "🏗️  Building Next.js application..."
 npm run build
 
