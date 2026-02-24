@@ -1,0 +1,9 @@
+# Rambam Log Analytics Dashboard - Python Dependencies
+
+# Core
+python-dateutil>=2.8.2
+
+# Optional: for future enhancements
+# pandas>=2.0.0        # for advanced data analysis
+# numpy>=1.24.0        # for numerical operations
+# openai>=1.0.0        # for content quality AI evaluation

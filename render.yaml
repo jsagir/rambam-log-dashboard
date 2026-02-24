@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rambam-log-dashboard
+    runtime: node
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.11"
