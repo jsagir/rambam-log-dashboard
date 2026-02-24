@@ -18,36 +18,40 @@ export function AccumulativeKPIs({ data }: AccumulativeKPIsProps) {
   const kpis = useMemo(() => {
     if (!data || !Array.isArray(data) || data.length === 0) return null;
 
+    // Normalize data to prevent undefined access errors
+    const safeData = data && Array.isArray(data) ? data : [];
+    if (safeData.length === 0) return null;
+
     // Total interactions across all logs
-    const totalInteractions = data.reduce((sum, d) => sum + d.parsed.total_interactions, 0);
+    const totalInteractions = safeData.reduce((sum, d) => sum + d.parsed.total_interactions, 0);
 
     // Language breakdown (accumulative)
-    const totalHebrew = data.reduce((sum, d) => sum + (d.anomalies.metrics.languages.hebrew || 0), 0);
-    const totalEnglish = data.reduce((sum, d) => sum + (d.anomalies.metrics.languages.english || 0), 0);
-    const totalUnknown = data.reduce((sum, d) => sum + (d.anomalies.metrics.languages.null || d.anomalies.metrics.languages.unknown || 0), 0);
+    const totalHebrew = safeData.reduce((sum, d) => sum + (d.anomalies.metrics.languages.hebrew || 0), 0);
+    const totalEnglish = safeData.reduce((sum, d) => sum + (d.anomalies.metrics.languages.english || 0), 0);
+    const totalUnknown = safeData.reduce((sum, d) => sum + (d.anomalies.metrics.languages.null || d.anomalies.metrics.languages.unknown || 0), 0);
 
     // Total issues (accumulative)
-    const totalCritical = data.reduce((sum, d) => sum + d.anomalies.summary.critical_count, 0);
-    const totalWarnings = data.reduce((sum, d) => sum + d.anomalies.summary.warning_count, 0);
+    const totalCritical = safeData.reduce((sum, d) => sum + d.anomalies.summary.critical_count, 0);
+    const totalWarnings = safeData.reduce((sum, d) => sum + d.anomalies.summary.warning_count, 0);
 
     // Average response time (weighted by interaction count)
-    const totalLatencySum = data.reduce((sum, d) => {
+    const totalLatencySum = safeData.reduce((sum, d) => {
       const avgLatency = d.anomalies.metrics.latencies.first_response?.avg || 0;
       return sum + (avgLatency * d.parsed.total_interactions);
     }, 0);
     const overallAvgLatency = totalInteractions > 0 ? totalLatencySum / totalInteractions : 0;
 
     // Overall health score (weighted)
-    const healthScores = data.map(d => {
+    const healthScores = safeData.map(d => {
       if (d.anomalies.summary.critical_count > 0) return 40;
       if (d.anomalies.summary.warning_count > 3) return 60;
       if (d.anomalies.summary.warning_count > 0) return 80;
       return 100;
     });
-    const overallHealthScore = healthScores.reduce((sum, score) => sum + score, 0) / data.length;
+    const overallHealthScore = healthScores.reduce((sum, score) => sum + score, 0) / safeData.length;
 
     // Best and worst performing days
-    const daysWithScores = data.map((d, idx) => ({
+    const daysWithScores = safeData.map((d, idx) => ({
       date: d.log_date,
       score: healthScores[idx],
       interactions: d.parsed.total_interactions,
@@ -62,19 +66,19 @@ export function AccumulativeKPIs({ data }: AccumulativeKPIsProps) {
     );
 
     // Average per day
-    const avgInteractionsPerDay = totalInteractions / data.length;
+    const avgInteractionsPerDay = totalInteractions / safeData.length;
 
     // Sessions
-    const totalSessions = data.reduce((sum, d) => sum + (d.parsed.sessions?.length || 0), 0);
+    const totalSessions = safeData.reduce((sum, d) => sum + (d.parsed.sessions?.length || 0), 0);
 
     // Date range
-    const dates = data.map(d => d.log_date).sort();
+    const dates = safeData.map(d => d.log_date).sort();
     const dateRange = `${dates[0]} to ${dates[dates.length - 1]}`;
 
     // Trend (first half vs second half)
-    const halfPoint = Math.floor(data.length / 2);
-    const firstHalfAvg = data.slice(0, halfPoint).reduce((sum, d) => sum + d.parsed.total_interactions, 0) / halfPoint;
-    const secondHalfAvg = data.slice(halfPoint).reduce((sum, d) => sum + d.parsed.total_interactions, 0) / (data.length - halfPoint);
+    const halfPoint = Math.floor(safeData.length / 2);
+    const firstHalfAvg = safeData.slice(0, halfPoint).reduce((sum, d) => sum + d.parsed.total_interactions, 0) / halfPoint;
+    const secondHalfAvg = safeData.slice(halfPoint).reduce((sum, d) => sum + d.parsed.total_interactions, 0) / (safeData.length - halfPoint);
     const trend = secondHalfAvg > firstHalfAvg ? 'up' : secondHalfAvg < firstHalfAvg ? 'down' : 'stable';
     const trendPercent = Math.abs(((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100);
 
@@ -93,7 +97,7 @@ export function AccumulativeKPIs({ data }: AccumulativeKPIsProps) {
       avgInteractionsPerDay,
       totalSessions,
       dateRange,
-      daysAnalyzed: data.length,
+      daysAnalyzed: safeData.length,
       trend,
       trendPercent,
     };
