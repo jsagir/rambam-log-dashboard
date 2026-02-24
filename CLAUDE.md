@@ -26,6 +26,407 @@ A clean, visual dashboard showing activity and performance data from the Rambam 
 - **System health** - Is everything working well?
 - **Items to review** - Any issues that need attention
 
+## 📋 NEW LOG WORKFLOW: What to Do with Every Log File
+
+### The Complete Process (Start to Finish)
+
+When you receive a new log file from the museum (typically from Jonathan@motj.org.il or the daily QA process), follow this workflow:
+
+#### **Step 1: Add Log to Repository**
+
+```bash
+# Copy the log file to the logs/ directory with date-based naming
+cp /path/to/log-file.txt logs/YYYYMMDD.txt
+
+# Examples:
+# logs/20260224.txt  (single log for Feb 24, 2026)
+# logs/20260224-2.txt (second log same day)
+```
+
+**File Naming Convention:**
+- Format: `YYYYMMDD.txt` (e.g., `20260224.txt`)
+- Multiple logs same day: add suffix `-2`, `-3` (e.g., `20260224-2.txt`)
+- Always use `.txt` extension even if content is newline-delimited JSON
+
+**Git Location:**
+```
+rambam-log-dashboard/
+└── logs/
+    ├── 20260215.txt
+    ├── 20260216.txt
+    └── 20260224.txt  ← Your new log goes here
+```
+
+#### **Step 2: Extract Data Using Gemini AI (RECOMMENDED)**
+
+Use the Gemini-powered extraction script for intelligent classification:
+
+```bash
+# Run Gemini extraction
+python3 python/gemini_extract.py logs/20260224.txt
+
+# This will output:
+# - Ready-to-paste TypeScript code for INTERACTIONS array
+# - DAILY_TREND entry with statistics
+# - Instructions for TOPIC_TREND (manual step)
+```
+
+**What Gemini Extracts Automatically:**
+
+1. **Question Classification** (6 types)
+   - Closed questions (yes/no, factual)
+   - Open ended questions (complex, discussion-worthy)
+   - Generic questions (general info)
+   - Personal advice or current event questions
+   - Statement / Clarification (not questions)
+   - Greeting (hello, goodbye, introductions)
+
+2. **Topic Categorization** (13 domains)
+   - **Kashrut** - Kosher food laws, dietary restrictions
+   - **Daily Practice** - Morning routines, washing, prayers
+   - **Science / Medicine** - Health, astronomy, Rambam as physician
+   - **Torah Study** - Learning, Talmud, religious texts
+   - **Jewish Sects** - Karaites, Reform, Conservative movements
+   - **Meta / Museum** - About the installation, tolerance, museum mission
+   - **Interfaith** - Christianity, Islam, other religions (HIGH SENSITIVITY)
+   - **Haredi / Army / Draft** - Ultra-orthodox military service (POLITICAL)
+   - **Sports / Leadership** - Team captains, leadership questions
+   - **Personal / Lifestyle** - Clothing, jewelry, personal items
+   - **Modern Politics** - Netanyahu, government, current events (CRITICAL)
+   - **Shabbat / Halacha** - Sabbath laws, Jewish law
+   - **Uncategorized** - Doesn't fit other categories
+
+3. **Sensitivity Detection** (4 levels)
+   - **low** - Non-controversial general questions
+   - **medium** - Requires care but not explosive (e.g., dietary laws)
+   - **high** - Politically or religiously sensitive (e.g., Jewish movements)
+   - **critical** - Extremely sensitive (idolatry, interfaith theology, modern politics)
+
+4. **Content Accuracy Assessment** (5 ratings)
+   - **correct** - Accurate, well-formed answer aligned with Rambam's writings
+   - **partial** - Incomplete or partially correct information
+   - **incorrect** - Wrong information or factual errors
+   - **guardrail** - Properly refused to answer (post-1204 topics, out of scope)
+   - **fallback** - Asked for clarification, couldn't understand question
+
+5. **VIP Detection**
+   - Extracts names and titles from greetings (e.g., "Professor Cohen", "Editor Sarah")
+   - Format: `"Name (Title)"` or `null` if no VIP mentioned
+   - **Why critical:** Named visitors are high-stakes, museum management must be notified
+
+6. **Anomaly Identification** (3 types)
+   - **LATENCY_SPIKE_WARN** - Response time > 3000ms (user experience issue)
+   - **FALLBACK_TRIGGERED** - Clarification requested (understanding failure)
+   - **SENSITIVE_TOPIC** - Critical sensitivity detected (political/interfaith)
+
+7. **Technical Metadata**
+   - Time of interaction (HH:MM format)
+   - Session number (groups related interactions)
+   - Language (he-IL, en-US)
+   - Latency in milliseconds
+   - Audio ID for correlation with TTS logs
+   - Opening sentence from response (for repetition detection)
+
+**Gemini Output Format:**
+
+```typescript
+// Ready-to-paste into src/app/simple-dashboard/page.tsx
+
+// INTERACTIONS array entry:
+{
+  id: 47,
+  time: "14:23",
+  session: 12,
+  question: "האם יכול מוסלמי להיות צדיק?",
+  answer: "בהחלט. הרמב\"ם כותב בהלכות מלכים...",
+  lang: "he-IL",
+  type: "Open ended questions",
+  topic: "Interfaith",
+  latency: 4235,
+  accuracy: "correct",
+  anomalies: ["LATENCY_SPIKE_WARN", "SENSITIVE_TOPIC"],
+  audioId: "152",
+  opening: "Indeed, my friend. The Rambam writes...",
+  sensitivity: "critical",
+  vip: null,
+  is_greeting: false
+}
+
+// DAILY_TREND entry:
+{
+  date: "Feb 24",
+  interactions: 23,
+  questions: 19,
+  hebrew: 15,
+  english: 8,
+  avgLatency: 2145,
+  anomalies: 5,
+  critical: 2,
+  inquiryPct: 35,
+  depthPct: 55
+}
+```
+
+#### **Step 3: Update Simple Dashboard**
+
+```bash
+# Edit the dashboard file
+nano src/app/simple-dashboard/page.tsx
+
+# 1. Add the INTERACTIONS entries to the INTERACTIONS array
+# 2. Add the DAILY_TREND entry to the DAILY_TREND array
+# 3. Manually update TOPIC_TREND based on topic counts
+```
+
+**Manual Step - TOPIC_TREND:**
+Count occurrences of each topic from the extracted interactions and add entry:
+
+```typescript
+{
+  date: "Feb 24",
+  Kashrut: 5,
+  "Daily Practice": 3,
+  "Torah Study": 7,
+  Interfaith: 2,
+  "Haredi/Army": 0,
+  "Meta/Museum": 4,
+  Other: 2
+}
+```
+
+#### **Step 4: Commit and Deploy**
+
+```bash
+# Stage the changes
+git add logs/20260224.txt src/app/simple-dashboard/page.tsx
+
+# Commit with descriptive message
+git commit -m "feat: Add log data for 2026-02-24
+
+- 23 interactions (15 Hebrew, 8 English)
+- 2 critical sensitivity items (interfaith questions)
+- Average latency 2145ms
+- 5 anomalies detected
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+# Push to GitHub (triggers auto-deploy to Render/Vercel)
+git push origin main
+```
+
+**Deployment Confirmation:**
+- Check Render dashboard: https://dashboard.render.com
+- Verify dashboard updates: https://rambam-log-dashboard.onrender.com/simple-dashboard
+- Typically takes 2-3 minutes for deployment
+
+#### **Step 5: Notify Stakeholders (if Critical Issues)**
+
+If Gemini extraction flagged **critical** sensitivity or **VIP** visitors:
+
+1. Review the flagged interactions manually
+2. Screenshot relevant Q&A pairs
+3. Notify Daniel and museum management
+4. Document in WhatsApp "Rambam – Tech&Ops" group if needed
+
+---
+
+### Alternative: Manual Extraction (Fallback)
+
+If Gemini is unavailable or you prefer manual control:
+
+```bash
+# Parse log file to see raw interactions
+python3 python/parse_log.py logs/20260224.txt --output json
+
+# Manually classify and add to dashboard
+# (More time-consuming, but no API dependencies)
+```
+
+---
+
+### What Data Can Be Extracted: The Complete Intelligence Layer
+
+**From the dual-audience dashboard perspective**, each log file is a rich data source serving both **content quality teams** (museum management, educators) and **technical monitoring teams** (developers, QA, operations).
+
+#### **Qualitative Data (Content Layer)**
+
+1. **Visitor Curiosity Patterns**
+   - What topics are visitors asking about?
+   - Are questions shallow or deep?
+   - Do visitors ask follow-up questions (inquiry mode)?
+   - Which topics generate the most engagement?
+
+2. **Content Quality Indicators**
+   - Halachic accuracy (alignment with Mishneh Torah)
+   - Persona consistency (first-person historical voice)
+   - Knowledge boundary violations (post-1204 questions)
+   - Museum appropriateness (interfaith sensitivity)
+   - Political balance (neutrality on Israeli topics)
+
+3. **Conversation Depth Metrics**
+   - Question type distribution (closed vs open-ended)
+   - Session length (number of interactions per visit)
+   - Language switches (Hebrew ↔ English mid-conversation)
+   - Greeting vs substantive questions ratio
+   - Inquiry mode percentage (deep engagement)
+
+4. **Sensitive Content Flags**
+   - Interfaith theology questions
+   - Modern political discussions
+   - Controversial halachic debates
+   - VIP visitor names and affiliations
+
+#### **Quantitative Data (Performance Layer)**
+
+1. **System Performance Metrics**
+   - End-to-end latency (STT → classification → LLM → TTS → playback)
+   - Opening sentence latency (first response speed)
+   - Real answer latency (full response generation)
+   - Latency trends over time (degradation detection)
+   - Peak vs off-peak performance comparison
+
+2. **Volume and Activity Patterns**
+   - Total interactions per day
+   - Interactions per hour (temporal heatmap)
+   - Sessions per day (unique visitor count proxy)
+   - Questions vs greetings ratio
+   - Weekday vs weekend patterns
+   - Holiday effects on visitor volume
+
+3. **Language Distribution**
+   - Hebrew vs English preference
+   - Language switches per session
+   - Unknown language fallback rate (Russian, Arabic)
+   - Language detection accuracy
+
+4. **Technical Health Indicators**
+   - HTTP status codes (200 vs errors)
+   - LLM error rate
+   - STT truncation frequency
+   - TTS ghost silence incidents
+   - Classification accuracy rate
+   - Fallback trigger rate (clarification requests)
+
+#### **Contextual Intelligence (Meta Layer)**
+
+1. **Topic Trends Over Time**
+   - Rising topics (what's becoming popular)
+   - Declining topics (what's losing interest)
+   - Seasonal patterns (holiday-related questions)
+   - Event-driven spikes (news correlation)
+   - Stacked area charts (ThemeRiver visualization)
+   - Bump charts (ranking changes)
+
+2. **Anomaly Narratives**
+   - When did latency spike and why?
+   - Which conversations triggered anomalies?
+   - Correlation with system changes/deployments
+   - Explain-by analysis (what dimensions explain the anomaly)
+   - Critical issues requiring immediate attention
+
+3. **Visitor Journey Insights**
+   - Session gaps (30min+ inactivity → new visitor)
+   - Mode transitions (Q&A → Inquiry → back to Q&A)
+   - Engagement depth progression
+   - Repeat visitor patterns (same session ID across days)
+
+4. **Museum Operations Intelligence**
+   - Best/worst/busiest days
+   - Peak hours for staffing decisions
+   - Content effectiveness by topic
+   - VIP visit patterns
+   - Multi-day trends (week-over-week growth)
+   - Health score evolution
+
+---
+
+### The Dual-Audience Dashboard Architecture
+
+**The dashboard serves both audiences through a layered "triad architecture":**
+
+#### **Top Band: Executive KPIs (Museum Management)**
+- Glanceable health status (🟢 🟡 🔴)
+- Total interactions, sessions, languages
+- Overall quality score, response time
+- Trend arrows (↑ ↓ →)
+- Sparklines showing 24-hour trajectory
+
+#### **Middle Zone: Conversation Feed + Topic Charts (Content Team)**
+- **Left side:** Compact conversation cards with:
+  - Question snippet (first 80 characters)
+  - Quality badge (color-coded: green/amber/red)
+  - Topic chips, sensitivity icon
+  - Latency tag
+  - Expandable drawer for full Q&A on click
+- **Right side:** Topic trends visualization:
+  - Treemap (proportional topic distribution)
+  - Stacked area chart (topic flow over time)
+  - Bump chart (ranking changes)
+  - Calendar heatmap (temporal patterns)
+
+#### **Bottom Zone: Technical Deep-Dive (Developers & QA)**
+- Performance time-series with anomaly annotations
+- Latency breakdown (STT, classification, LLM, TTS)
+- Known bug detection alerts
+- Raw log access and filtering
+- Anomaly log with "Explain by" analysis
+
+**Key Design Principle:** Click any data point in any zone to navigate to relevant content in another zone. E.g., clicking a latency spike surfaces the conversations behind it; clicking a quality score reveals the actual AI answer.
+
+---
+
+### Museum-Grade Aesthetic Guidelines
+
+**Colors (Warm, Sophisticated, Non-Clinical):**
+- Background: Warm off-white (`#FAFAF7`)
+- Cards: Pure white (`#FFFFFF`)
+- Accents: Deep teal (`#2D6A7A`), golden amber (`#BD8C38`)
+- Success: Muted forest green (`#4A8F6F`)
+- Warning: Amber gold (`#D4A843`)
+- Critical: Burnt sienna (`#C75B3A`)
+
+**Typography:**
+- Headings: Museum-grade serif or refined sans-serif
+- Metrics: Large, readable numbers with trend context
+- Body: Clear sans-serif for data tables
+
+**Visualization Principles (Tufte, Few, Knaflic):**
+- High data-ink ratio (no decorative elements)
+- Direct labels on data points (no separate legends)
+- Sparklines next to every KPI
+- Bullet graphs for SLA compliance (not gauges)
+- Annotations marking deployments and events
+- Preattentive attributes: position > length > color hue > size
+
+---
+
+### Quick Reference: Complete Log Workflow
+
+```bash
+# 1. Receive log → Add to repo
+cp ~/Downloads/rambam-log-2026-02-24.txt logs/20260224.txt
+
+# 2. Extract with Gemini
+python3 python/gemini_extract.py logs/20260224.txt
+
+# 3. Copy output → Paste into dashboard
+nano src/app/simple-dashboard/page.tsx
+
+# 4. Commit and deploy
+git add logs/20260224.txt src/app/simple-dashboard/page.tsx
+git commit -m "feat: Add log data for 2026-02-24"
+git push origin main
+
+# 5. Verify deployment (2-3 minutes)
+# https://rambam-log-dashboard.onrender.com/simple-dashboard
+```
+
+**Time estimate:** 5-10 minutes per log file with Gemini extraction.
+
+---
+
 ## Tech Stack
 
 - **Frontend**: Next.js 14+ with TypeScript, React, Tailwind CSS
