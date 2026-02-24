@@ -9,6 +9,7 @@ import { SectionTitle } from '@/components/shared/SectionTitle';
 import { TopicStream } from './TopicStream';
 import { TopicQualityTreemap } from './TopicQualityTreemap';
 import { DailySummary } from './DailySummary';
+import { AnomalyFeed } from './AnomalyFeed';
 import { Activity, Clock, Users, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -139,7 +140,7 @@ export function CumulativeView({ data }: CumulativeViewProps) {
   }, [data]);
 
   // Collect all critical anomalies
-  const criticalIssues = data.flatMap((day) => {
+  const criticalIssues = (data || []).flatMap((day) => {
     const anomalies = day.parsed?.summary?.anomaly_summary?.critical || {};
     const date = day.log_date || day.filename;
     return Object.entries(anomalies).flatMap(([type, count]) =>
