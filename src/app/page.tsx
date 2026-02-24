@@ -100,13 +100,20 @@ export default function Dashboard() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Rambam Log Analytics Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Museum of Tolerance Jerusalem - AI Holographic System Monitoring
-              </p>
+            <div className="flex items-center gap-6">
+              <img
+                src="/motj-logo.png"
+                alt="Museum of Tolerance Jerusalem"
+                className="h-12 w-auto"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Rambam Log Analytics Dashboard
+                </h1>
+                <p className="mt-1 text-sm text-gray-500">
+                  Museum of Tolerance Jerusalem - AI Holographic System Monitoring
+                </p>
+              </div>
             </div>
             <Activity className="h-8 w-8 text-blue-600" />
           </div>
