@@ -19,8 +19,11 @@ export default function Dashboard() {
           throw new Error('Failed to load dashboard data');
         }
 
-        if (result?.results && Array.isArray(result.results) && result.results.length > 0) {
-          setData(result.results);
+        // Normalize to ensure always an array (never undefined/null)
+        const normalizedData = Array.isArray(result?.results) ? result.results : [];
+
+        if (normalizedData.length > 0) {
+          setData(normalizedData);
         } else {
           setError('No log data available yet. Logs will be processed during the next deployment.');
         }
@@ -84,7 +87,7 @@ export default function Dashboard() {
         )}
 
         {!loading && !error && data.length > 0 && (
-          <ExecutiveDashboard data={data} />
+          <ExecutiveDashboard data={Array.isArray(data) ? data : []} />
         )}
       </main>
     </div>
