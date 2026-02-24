@@ -17,8 +17,13 @@ interface MultiDayComparisonProps {
 }
 
 export function MultiDayComparison({ data }: MultiDayComparisonProps) {
+  // Guard against undefined/invalid data
+  const safeData = data && Array.isArray(data) ? data : [];
+
   const comparisonData = useMemo(() => {
-    return data.map(day => {
+    if (!safeData || safeData.length === 0) return [];
+
+    return safeData.map(day => {
       const avgLatency = day.anomalies.metrics.latencies.first_response?.avg || 0;
       const languages = day.anomalies.metrics.languages;
 
@@ -41,13 +46,13 @@ export function MultiDayComparison({ data }: MultiDayComparisonProps) {
   return (
     <div className="space-y-6 mb-8">
       {/* Accumulative KPIs */}
-      <AccumulativeKPIs data={data} />
+      <AccumulativeKPIs data={safeData} />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="text-sm font-medium text-gray-600">Days Analyzed</div>
-          <div className="text-2xl font-bold text-gray-900 mt-1">{data.length}</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{safeData.length}</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="text-sm font-medium text-gray-600">Total Interactions</div>
@@ -58,7 +63,7 @@ export function MultiDayComparison({ data }: MultiDayComparisonProps) {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="text-sm font-medium text-gray-600">Avg Daily Interactions</div>
           <div className="text-2xl font-bold text-gray-900 mt-1">
-            {Math.round(comparisonData.reduce((sum, d) => sum + d.interactions, 0) / data.length)}
+            {safeData.length > 0 ? Math.round(comparisonData.reduce((sum, d) => sum + d.interactions, 0) / safeData.length) : 0}
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

@@ -26,8 +26,12 @@ export interface CumulativeViewProps {
 const SENSITIVITY_COLORS = { low: '#6b7280', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626' };
 
 export function CumulativeView({ data }: CumulativeViewProps) {
+  console.log('[CumulativeView] START - data:', { exists: !!data, isArray: Array.isArray(data), length: data?.length });
+
   // Guard against undefined/invalid data
   const safeData = data && Array.isArray(data) ? data : [];
+
+  console.log('[CumulativeView] safeData normalized:', { length: safeData.length });
 
   // Calculate cumulative stats
   const totalInteractions = safeData.reduce((sum, day) => sum + (day.parsed?.summary?.total_interactions || 0), 0);
