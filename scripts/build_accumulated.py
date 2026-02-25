@@ -74,6 +74,16 @@ def build_accumulated():
     daily_stats.sort(key=lambda x: x.get('date', ''))
     dates.sort()
 
+    # Deduplicate IDs — overlapping logs can produce identical msg IDs
+    seen_ids = {}
+    for inter in all_interactions:
+        cid = inter['id']
+        if cid in seen_ids:
+            seen_ids[cid] += 1
+            inter['id'] = f'{cid}_{seen_ids[cid]}'
+        else:
+            seen_ids[cid] = 0
+
     # Compute aggregate KPIs
     total = len(all_interactions)
     latencies = [i['latency_ms'] for i in all_interactions if i['latency_ms'] > 0]

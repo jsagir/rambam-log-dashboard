@@ -1223,8 +1223,8 @@ export function AskTheData({ conversations }: AskTheDataProps) {
               {/* Conversation results */}
               {result.conversations.length > 0 && (
                 <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
-                  {result.conversations.map(c => (
-                    <ResultCard key={c.id} conversation={c} />
+                  {result.conversations.map((c, i) => (
+                    <ResultCard key={`${c.id}-${i}`} conversation={c} />
                   ))}
                 </div>
               )}

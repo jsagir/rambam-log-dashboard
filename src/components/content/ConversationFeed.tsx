@@ -29,7 +29,7 @@ function scoreNotable(c: Conversation): number {
 export function ConversationFeed({ conversations, showTranslations }: ConversationFeedProps) {
   const [sortMode, setSortMode] = useState<SortMode>('notable')
   const [searchQuery, setSearchQuery] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
   const [filters, setFilters] = useState<ActiveFilters>({ ...EMPTY_FILTERS })
 
   const stopCount = useMemo(
@@ -139,13 +139,13 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
             No visitor questions match your filter.
           </div>
         ) : (
-          sorted.map((convo) => (
+          sorted.map((convo, idx) => (
             <ConversationCard
-              key={convo.id}
+              key={`${convo.id}-${idx}`}
               conversation={convo}
               showTranslations={showTranslations}
-              isExpanded={expandedId === convo.id}
-              onToggle={() => setExpandedId(expandedId === convo.id ? null : convo.id)}
+              isExpanded={expandedIdx === idx}
+              onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
             />
           ))
         )}
