@@ -5,9 +5,32 @@ import json
 import sys
 import os
 import re
+import time as _time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+try:
+    from deep_translator import GoogleTranslator
+    _translator = GoogleTranslator(source='iw', target='en')
+    HAS_TRANSLATOR = True
+except ImportError:
+    HAS_TRANSLATOR = False
+
+
+def translate_he_to_en(text):
+    """Translate Hebrew text to English. Returns empty string on failure."""
+    if not HAS_TRANSLATOR or not text or not text.strip():
+        return ''
+    # Skip if no Hebrew characters
+    if not any('\u0590' <= c <= '\u05FF' for c in text):
+        return ''
+    try:
+        result = _translator.translate(text[:2000])  # cap at 2000 chars
+        _time.sleep(0.15)  # rate limit
+        return result or ''
+    except Exception:
+        return ''
 
 ISRAEL_TZ = ZoneInfo('Asia/Jerusalem')
 
@@ -346,8 +369,8 @@ def group_interactions(entries):
             'hour': hour,
             'question': question,
             'answer': full_answer,
-            'question_en': question if detect_language(question) == 'en' else '',
-            'answer_en': '',
+            'question_en': question if detect_language(question) == 'en' else translate_he_to_en(question),
+            'answer_en': translate_he_to_en(full_answer) if lang == 'he-IL' else '',
             'language': lang,
             'question_type': question_type,
             'topic': topic,
@@ -390,7 +413,7 @@ def group_interactions(entries):
                 'hour': parsed_time.hour if parsed_time else 0,
                 'question': question,
                 'answer': '',
-                'question_en': question if detect_language(question) == 'en' else '',
+                'question_en': question if detect_language(question) == 'en' else translate_he_to_en(question),
                 'answer_en': '',
                 'language': 'unknown',
                 'question_type': 'Greeting' if is_greeting(question) else 'General',
