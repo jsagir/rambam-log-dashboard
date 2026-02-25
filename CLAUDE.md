@@ -22,28 +22,33 @@ The dashboard has two main views, accessible via prominent buttons at the top:
 **Additional features:**
 - **Translation toggle** — Show/hide English translations of Hebrew conversations
 - **Faceted filters** — Topic, Language, Sensitivity, Latency, Anomaly, STOP command multi-filters
-- **Ask the Data** — Natural language query engine (third tab in "What Visitors Are Asking")
+- **Ask the Data** — Sticky floating panel (bottom-right), GPT-4o-mini powered with local fallback
 - **System Issues** — Collapsible section showing latency scatter, daily trends, anomaly breakdown
 
 ## Architecture: "Ask the Data"
 
-**Phase 1 (LIVE):** ILR-based client-side query intelligence engine
-- 12 query categories: topic, temporal, language, latency, anomaly, stop commands, comparison, FAQ, ranking, summary, opening analysis, free-text search
-- Intermediate Logical Representation pipeline: tokenize → alias resolve → build ILR → execute → enrich → insight
-- Full Hebrew input support: "צבא"→Military, "כשרות"→Kashrut, "בעיות"→anomalies, etc.
-- Comparison mode: "Hebrew vs English", topic vs topic, morning vs afternoon, date vs date
-- Auto-enrichment on every result: date span, language split, avg latency, failure rate, top FAQ
-- Auto-insights: detects anomaly spikes, latency drift, high stop rates
+**UI:** Sticky floating panel on the right side of the dashboard. Always available — click the gold "Ask the Data" button at bottom-right. Collapsible, resizable (compact/normal/large).
 
-**Phase 2 (500+ conversations):** Kuzu-WASM graph + OpenAI "Ask the Data"
-- Kuzu-WASM in browser, builds graph from JSON files
-- OpenAI (gpt-4o-mini) via Cloudflare Worker proxy converts questions to Cypher
-- Results render as ConversationCard components, not chat bubbles
+**Hybrid engine:**
+1. **Primary: LLM-powered** (GPT-4o-mini via OpenAI proxy at `api/openai-proxy.cjs`)
+   - Client builds a compact text summary of ALL conversations from accumulated.json
+   - Sends `{ question, dataSummary }` to proxy at `VITE_ASK_PROXY_URL`
+   - Proxy adds comprehensive system prompt (data schema, anomaly types, topic context)
+   - GPT returns structured JSON: `{ filters, sort, mode, answer, stats, insights, follow_ups }`
+   - Client applies returned filters to show matching conversation cards
+   - Follow-up questions rendered as clickable chips
+   - Indicator: brain emoji (🧠)
+2. **Fallback: Local keyword engine** (when proxy unavailable or no OpenAI credits)
+   - Topic alias matching, language/anomaly/stop/sensitivity filters
+   - Comparison mode, text search, basic aggregation
+   - Indicator: lightning bolt (⚡)
 
-**Key decisions from swarm review:**
-- `accumulated.json` STAYS as source of truth for all existing components
-- Stop commands stay IN conversations array (not removed to separate file)
-- Kuzu is additive layer for AskTheData ONLY, not a replacement for direct JSON
+**Proxy deployment:** Render Web Service `rambam-ask-proxy` (srv-d6ff035di7vc738pp26g)
+- Source: `api/openai-proxy.cjs` (CommonJS — `.cjs` required because package.json has `"type": "module"`)
+- Env: `OPENAI_KEY` (shared environment group with dashboard)
+- URL: `https://rambam-ask-proxy.onrender.com/ask`
+
+**Future (500+ conversations):** Add Pinecone vector retrieval before GPT to avoid sending all data in context.
 
 ## CRITICAL: Two-Latency Model
 
@@ -103,20 +108,108 @@ After processing a new log, report:
 - Latency stats (avg, median, P95, spikes)
 - Any data contract violations
 
-## How It Works
+## MANDATORY: New Log Ingestion Pipeline
 
-1. **Add Logs** — Place raw `.txt` files in `logs/raw/`
-2. **Process** — Run `python3 scripts/process_all_new.py`
-3. **Validate** — Consult swarm skills to verify data quality
-4. **View** — Run `npm run dev` to see dashboard at localhost
-5. **Deploy** — `git push` triggers Render auto-deploy
+**When a new log file arrives, follow EVERY step. Do NOT skip steps.**
 
-## What You See
+### Step 1: Add raw log
 
-- **Visitor engagement** - How many people are talking to Rambam
-- **Language preferences** - Hebrew vs English conversations
-- **Activity trends** - Are visits increasing or decreasing?
-- **Response speed** - How fast Rambam answers
+```bash
+cp /path/to/new-log.txt logs/raw/YYYYMMDD.txt
+# Naming: 20260225.txt, or 20260225-2.txt for second log same day
+# Extension: always .txt (even though content is newline-delimited JSON)
+```
+
+### Step 2: Process all new logs
+
+```bash
+python3 scripts/process_all_new.py
+```
+
+This orchestrator does three things automatically:
+1. Finds unprocessed `.txt` files in `logs/raw/` (compares stems against `logs/processed/`)
+2. Runs `scripts/process_log.py` on each new file — parses JSON lines, groups interactions by msg.id, computes two-latency model, detects anomalies, classifies topics, translates Hebrew, detects STOP commands, outputs `logs/processed/YYYYMMDD.json`
+3. Runs `scripts/build_accumulated.py` — merges ALL processed files into `public/data/accumulated.json` with deduplication, KPI aggregation, topic trends, and anomaly log
+
+### Step 3: Validate with swarm (MANDATORY)
+
+Run the three validation gates in order:
+1. `swarm/rambam-log-extractor.md` — parsing quality, topic classification, anomaly detection
+2. `swarm/rambam-viz-shaper.md` — data contract compliance, latency integrity, chart renderability
+3. `swarm/dataviz-consultant.md` — visualization effectiveness
+
+**Report after validation:**
+- Total conversations extracted
+- Topic distribution (flag if "General" > 40%)
+- Anomalies found (count + types)
+- Latency stats (avg, P95, spikes)
+- Any data contract violations
+
+### Step 4: Verify locally
+
+```bash
+npm run dev
+# Open http://localhost:5173 and verify:
+# - New day appears in Day Drill-Down dropdown
+# - KPI numbers updated
+# - Conversations visible in feed
+# - No broken charts
+```
+
+### Step 5: Commit and deploy
+
+```bash
+git add logs/raw/YYYYMMDD.txt logs/processed/YYYYMMDD.json public/data/accumulated.json
+git commit -m "feat: Add log data for YYYY-MM-DD (N interactions)"
+git push origin main
+# Render auto-deploys in 2-3 minutes
+```
+
+### Step 6: Notify if critical
+
+If processing flagged **critical sensitivity** items, **VIP visitors**, or **system failures** — notify Daniel and museum management.
+
+### Data flow diagram
+
+```
+logs/raw/YYYYMMDD.txt          (newline-delimited JSON: STT + AI messages)
+    ↓ scripts/process_log.py   (parse, group, classify, detect anomalies, translate)
+logs/processed/YYYYMMDD.json   (enriched interactions + daily summary)
+    ↓ scripts/build_accumulated.py  (merge all, deduplicate IDs, aggregate KPIs)
+public/data/accumulated.json   (single source of truth: meta + kpi + daily_stats + topic_trend + anomaly_log + conversations)
+    ↓ Dashboard fetches at runtime
+https://rambam-dash-v2.onrender.com
+```
+
+### Raw log format
+
+Each line is JSON with `type` field:
+- `{"type": "stt", "time": "2026/2/25 13:45:02", "msg": "visitor question text"}` — speech-to-text
+- `{"type": "ai_message", ..., "msg": {"id": "UUID", "type": "waiting_audio", ...}}` — opening sentence dispatched (T1)
+- `{"type": "ai_message", ..., "msg": {"id": "UUID", "type": "stream_chunk", "data": {"result": "...", "finished": false}}}` — LLM response chunks (T2, T3)
+
+Events are grouped by `msg.id`. Latencies computed from timestamps: T0 (STT) → T1 (waiting_audio) → T2 (first chunk) → T3 (last chunk).
+
+### What process_log.py produces per interaction
+
+```
+id, date, time, hour, question, answer, question_en, answer_en,
+language, question_type, topic, opening_text, audio_id,
+latency_ms, opening_latency_ms, ai_think_ms, stream_duration_ms,
+is_out_of_order, answer_length, chunk_count, is_complete,
+is_greeting, is_thank_you_interrupt, thank_you_type,
+is_comprehension_failure, is_no_answer, is_anomaly, anomaly_type,
+anomalies[], sensitivity, vip, needs_translation
+```
+
+### Critical rules
+
+1. **Chronological order** — interactions MUST be sorted by timestamp ascending
+2. **ID deduplication** — overlapping logs produce duplicate msg.ids → build_accumulated.py appends `_1`, `_2` suffixes
+3. **No negative latencies** — if T1 < T0 (out-of-order bug), flag as `OUT_OF_ORDER`
+4. **Topic quality gate** — if "General" > 40%, review keyword rules in process_log.py
+5. **Translation** — all Hebrew conversations get English translations via Google Translate
+6. **Sensitivity escalation** — `critical` items (idolatry, interfaith theology, modern politics) require human review
 - **System health** - Is everything working well?
 - **Items to review** - Any issues that need attention
 
