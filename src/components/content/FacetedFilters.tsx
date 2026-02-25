@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { Filter, X, ChevronDown } from 'lucide-react'
 import type { Conversation } from '@/types/dashboard'
 import { TOPIC_COLORS, SENSITIVITY_COLORS } from '@/types/dashboard'
@@ -54,9 +54,22 @@ function MultiSelect({
   getColor?: (value: string) => string
 }) {
   const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close on outside click — more robust than backdrop overlay
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
@@ -75,47 +88,44 @@ function MultiSelect({
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-xl min-w-[200px] py-1 max-h-[300px] overflow-y-auto">
-            {options.map((opt) => {
-              const isSelected = selected.includes(opt.value)
-              const color = getColor?.(opt.value)
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    if (isSelected) {
-                      onChange(selected.filter((s) => s !== opt.value))
-                    } else {
-                      onChange([...selected, opt.value])
-                    }
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                    isSelected ? 'bg-gold/10 text-parchment' : 'text-parchment-dim hover:bg-card-hover hover:text-parchment'
+        <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-xl min-w-[200px] py-1 max-h-[300px] overflow-y-auto">
+          {options.map((opt) => {
+            const isSelected = selected.includes(opt.value)
+            const color = getColor?.(opt.value)
+            return (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  if (isSelected) {
+                    onChange(selected.filter((s) => s !== opt.value))
+                  } else {
+                    onChange([...selected, opt.value])
+                  }
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                  isSelected ? 'bg-gold/10 text-parchment' : 'text-parchment-dim hover:bg-card-hover hover:text-parchment'
+                }`}
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded-sm border flex-shrink-0 flex items-center justify-center transition-colors ${
+                    isSelected ? 'bg-gold border-gold' : 'border-border'
                   }`}
                 >
-                  <span
-                    className={`w-3.5 h-3.5 rounded-sm border flex-shrink-0 flex items-center justify-center transition-colors ${
-                      isSelected ? 'bg-gold border-gold' : 'border-border'
-                    }`}
-                  >
-                    {isSelected && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="#1C1914" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                  {color && (
-                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                  {isSelected && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="#1C1914" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   )}
-                  <span className="flex-1 text-left">{opt.value}</span>
-                  <span className="text-xs text-text-dim font-mono">{opt.count}</span>
-                </button>
-              )
-            })}
-          </div>
-        </>
+                </span>
+                {color && (
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                )}
+                <span className="flex-1 text-left">{opt.value}</span>
+                <span className="text-xs text-text-dim font-mono">{opt.count}</span>
+              </button>
+            )
+          })}
+        </div>
       )}
     </div>
   )
