@@ -413,7 +413,7 @@ function ResultCard({ conversation: c }: { conversation: Conversation }) {
             <div className="flex-1 h-px bg-gold/15" />
           </div>
           <div className="text-sm text-parchment-dim leading-relaxed" dir={c.language === 'he-IL' ? 'rtl' : 'ltr'}>
-            {c.answer.length > 300 ? c.answer.slice(0, 300) + '...' : c.answer}
+            {c.answer}
           </div>
         </div>
       )}
