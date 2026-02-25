@@ -10,21 +10,35 @@ A clean, visual dashboard showing activity and performance data from the Rambam 
 **Live URL:** https://rambam-dash-v2.onrender.com
 **Environment:** `OPENAI_KEY` is available in Render environment variables for LLM-powered features
 
-## Architecture: "Ask the Data" (PLANNED — Phase 2)
+## Dashboard Navigation
 
-**Status: DEFERRED until 500+ conversations.** Swarm reviewed the Kuzu-WASM + LLM chat plan and recommended phased approach:
+The dashboard has two main views, accessible via prominent buttons at the top:
 
-**Phase 1 (NOW):** Faceted filters + cross-filter linking on ConversationFeed
-- Topic multi-select, Language dropdown, Sensitivity filter, Date range, Latency threshold, Anomaly type
-- Click topic bar → filters feed. Click latency dot → jumps to conversation.
-- Pattern Alerts: auto-surface "Interfaith questions up 3x this week" type insights.
+- **Cumulative Trends** — Overall performance across all days. Shows aggregated KPIs, topic trends, daily volume charts, and the full conversation feed. This is the default view.
+- **Day Drill-Down** — Examine a specific day in detail. Shows KPIs, conversations, and charts filtered to one day. Navigate between days with arrow buttons or the date dropdown. Shows the day name, date, and conversation count in a gold banner.
+
+**Color legend** (always visible): Green = Good, Yellow = Needs Attention, Red = Problem.
+
+**Additional features:**
+- **Translation toggle** — Show/hide English translations of Hebrew conversations
+- **Faceted filters** — Topic, Language, Sensitivity, Latency, Anomaly, STOP command multi-filters
+- **Ask the Data** — Natural language query engine (third tab in "What Visitors Are Asking")
+- **System Issues** — Collapsible section showing latency scatter, daily trends, anomaly breakdown
+
+## Architecture: "Ask the Data"
+
+**Phase 1 (LIVE):** ILR-based client-side query intelligence engine
+- 12 query categories: topic, temporal, language, latency, anomaly, stop commands, comparison, FAQ, ranking, summary, opening analysis, free-text search
+- Intermediate Logical Representation pipeline: tokenize → alias resolve → build ILR → execute → enrich → insight
+- Full Hebrew input support: "צבא"→Military, "כשרות"→Kashrut, "בעיות"→anomalies, etc.
+- Comparison mode: "Hebrew vs English", topic vs topic, morning vs afternoon, date vs date
+- Auto-enrichment on every result: date span, language split, avg latency, failure rate, top FAQ
+- Auto-insights: detects anomaly spikes, latency drift, high stop rates
 
 **Phase 2 (500+ conversations):** Kuzu-WASM graph + OpenAI "Ask the Data"
 - Kuzu-WASM in browser, builds graph from JSON files
 - OpenAI (gpt-4o-mini) via Cloudflare Worker proxy converts questions to Cypher
-- Third tab in ContentIntelligence, not a separate zone
 - Results render as ConversationCard components, not chat bubbles
-- Suggested questions as clickable entry points
 
 **Key decisions from swarm review:**
 - `accumulated.json` STAYS as source of truth for all existing components
