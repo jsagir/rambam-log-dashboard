@@ -1,206 +1,159 @@
-# Rambam Log Analytics Dashboard
+# Rambam Visitor Dashboard
 
-A real-time web dashboard for analyzing interaction logs from the Rambam (Maimonides) AI holographic system at the Museum of Tolerance Jerusalem.
+A visual dashboard for monitoring the Rambam (Maimonides) AI holographic experience at the Museum of Tolerance Jerusalem.
 
-## Features
+**Live:** https://rambam-dash-v2.onrender.com
 
-- **Dual-Layer Analysis**
-  - Content Quality: Evaluates answer accuracy, persona consistency, and museum appropriateness
-  - Technical Anomaly Detection: Identifies system issues, latency spikes, and errors
+> First-time loading: If the page takes a minute, the server is waking up (not always-on to save costs). Wait 1-2 minutes, then it works instantly.
 
-- **Real-Time Insights**
-  - Interactive dashboard with critical metrics
-  - Language distribution visualization
-  - Performance metrics tracking
-  - Anomaly alerts (Critical, Warning, Operational)
+## What It Shows
 
-- **Comprehensive Reporting**
-  - Session grouping and timeline analysis
-  - Q&A pair evaluation
-  - Latency baselines and threshold monitoring
-  - Known bug pattern detection
+- How many visitors talked to Rambam each day
+- Which languages they used (Hebrew / English)
+- What topics they asked about (Kashrut, Theology, Military, Philosophy, etc.)
+- How fast the system responded
+- Whether everything is working properly
+- Any issues that need attention
+
+Green = good. Yellow = needs attention. Red = problem.
+
+## How to Use
+
+**Cumulative Trends** — Click to see overall performance across all days. Aggregated KPIs, topic trends, daily volume charts.
+
+**Day Drill-Down** — Click to examine a specific day. Navigate between days with arrow buttons. Shows that day's conversations, KPIs, and performance.
+
+**Visitor Questions tab** — Browse individual Q&A conversations. Filter by topic, language, sensitivity, speed, problems, or stop commands.
+
+**Topics & Trends tab** — Charts showing topic distribution, language split, daily volume, hourly activity, and topic trends over time.
+
+**Ask the Data tab** — Type natural language questions about the data. Supports English and Hebrew. Try: "kashrut", "slow responses", "compare Hebrew vs English", "busiest hour", "any problems?", "צבא", "כשרות".
+
+**Response Speed section** — Detailed latency analysis: percentiles, SLA targets, speed by topic, speed by language, scatter plots, daily trends.
+
+**System Issues section** — Click to expand. Shows every anomaly, latency scatter plot, daily speed trend, problem types, recent issues.
+
+Hover over any icon or badge for a plain English explanation of what it means.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Analysis Engine**: Python 3 scripts
-- **Data Visualization**: Recharts, Lucide Icons
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- Python 3.9+
-
-### Installation
-
-1. Clone or navigate to the project directory:
-```bash
-cd ~/rambam-log-dashboard
-```
-
-2. Install Node.js dependencies:
-```bash
-npm install
-```
-
-3. Install Python dependencies:
-```bash
-pip install -r python/requirements.txt
-```
-
-### Development
-
-Run the development server:
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Usage
-
-1. Click "Choose File" and upload a Rambam log file (.txt or .json)
-2. Click "Analyze" to process the log
-3. View the dashboard with:
-   - Overall health status
-   - Language distribution
-   - Critical issues and warnings
-   - Performance metrics
-   - Session timeline
+- **Frontend:** Vite + React 19 + TypeScript + Tailwind CSS
+- **Charts:** Recharts
+- **Icons:** Lucide React
+- **Data:** Static JSON (`public/data/accumulated.json`)
+- **Deploy:** Render static site, auto-deploys on push to main
+- **Processing:** Python scripts generate accumulated.json from raw museum logs
 
 ## Project Structure
 
 ```
 rambam-log-dashboard/
-├── CLAUDE.md              # Project rules and architecture
-├── README.md              # This file
 ├── src/
-│   ├── app/
-│   │   ├── page.tsx       # Main dashboard
-│   │   ├── layout.tsx     # Root layout
-│   │   ├── globals.css    # Global styles
-│   │   └── api/
-│   │       └── analyze/   # Log analysis endpoint
-│   ├── components/        # React components
-│   ├── lib/               # Utilities
-│   │   └── utils.ts       # Helper functions
-│   └── types/
-│       └── rambam.ts      # TypeScript definitions
-├── python/
-│   ├── parse_log.py       # Log parser
-│   ├── detect_anomalies.py # Anomaly detector
-│   └── requirements.txt   # Python dependencies
-├── public/                # Static assets
+│   ├── App.tsx                          # Main layout + navigation
+│   ├── main.tsx                         # React entry point
+│   ├── index.css                        # Tailwind + custom theme
+│   ├── components/
+│   │   ├── kpi/KPIBand.tsx              # Top KPI stat cards with sparklines
+│   │   ├── content/
+│   │   │   ├── ContentIntelligence.tsx   # 3-tab container
+│   │   │   ├── ConversationFeed.tsx      # Q&A list with sorting
+│   │   │   ├── ConversationCard.tsx      # Individual conversation display
+│   │   │   ├── FacetedFilters.tsx        # Multi-select filter controls
+│   │   │   ├── TopicCharts.tsx           # Topic, language, volume charts
+│   │   │   └── AskTheData.tsx            # Natural language query engine
+│   │   └── health/
+│   │       ├── LatencyPanel.tsx          # Response speed deep-dive
+│   │       └── SystemHealth.tsx          # Anomaly tracking
+│   ├── hooks/useAccumulatedData.ts       # Data loader
+│   ├── lib/utils.ts                      # Formatters and helpers
+│   └── types/dashboard.ts               # TypeScript interfaces
+├── scripts/
+│   ├── process_log.py                    # Single log processor
+│   └── process_all_new.py               # Batch processor for new logs
+├── logs/                                 # Raw museum log files
+├── public/
+│   └── data/accumulated.json             # Pre-processed dashboard data
+├── swarm/                                # Validation skill definitions
+│   ├── rambam-log-extractor.md
+│   ├── rambam-viz-shaper.md
+│   └── dataviz-consultant.md
+├── CLAUDE.md                             # Architecture rules + dev guide
 ├── package.json
-├── tsconfig.json
 ├── tailwind.config.ts
-└── next.config.ts
+├── tsconfig.json
+└── vite.config.ts
 ```
 
-## Analysis Pipeline
+## Data Pipeline
 
-1. **Parse Log** (`parse_log.py`)
-   - Extracts structured interactions from newline-delimited JSON
-   - Groups interactions into sessions
-   - Computes latencies
+1. **Receive logs** — Raw `.txt` files from the museum go into `logs/`
+2. **Process** — `python3 scripts/process_all_new.py` extracts conversations, detects anomalies, classifies topics, computes latencies
+3. **Validate** — Three swarm skills verify data quality (extractor, viz-shaper, dataviz)
+4. **Output** — Generates `public/data/accumulated.json` with all conversations, daily stats, topic trends, anomaly log, and KPIs
+5. **Deploy** — `git push` triggers Render auto-deploy. Dashboard reads the JSON client-side.
 
-2. **Detect Anomalies** (`detect_anomalies.py`)
-   - Identifies critical issues (language failures, LLM errors, persona breaks)
-   - Flags warnings (latency spikes, truncation, empty responses)
-   - Tracks operational patterns (language switches, session gaps)
+No API routes. No file uploads. No database. The JSON file is the single source of truth.
 
-3. **Visualize Dashboard**
-   - Displays real-time metrics
-   - Shows anomaly alerts with severity levels
-   - Provides performance analytics
+## Key Features
 
-## Anomaly Categories
+**Ask the Data** — Client-side natural language query engine using an Intermediate Logical Representation (ILR) pipeline. Supports 12 query categories: topic aliases, temporal queries (dates, "yesterday", "this week"), language filters, latency analysis, anomaly search, stop command analysis, comparisons ("Hebrew vs English"), FAQ detection, topic ranking, opening sentence analysis, summaries, and free-text search. Full Hebrew input support. Auto-enriches every result with contextual stats and pattern insights.
 
-### 🔴 Critical
-- `LANG_UNKNOWN`: Language detection failed
-- `LLM_ERROR`: No response after classification
-- `PERSONA_BREAK`: System messages in response
-- `NON_200_CODE`: HTTP error codes
+**STOP Safe Word Detection** — The Rambam hologram has a kill switch: saying "Thank you" in English stops Rambam mid-sentence. Hebrew "תודה" is polite thanks, NOT a stop. The dashboard tracks and distinguishes both. Dashboard shows red "STOP" badges for kill switches and green "🙏" for polite thanks.
 
-### 🟡 Warning
-- `LATENCY_SPIKE`: Response time exceeds threshold
-- `STT_TRUNCATION`: Short, incomplete questions
-- `EMPTY_RESPONSE`: No content in response
-- `STYLE_ANOMALY`: Non-neutral styling
+**Two-Latency Model** — Rambam plays a pre-recorded opening sentence while the AI thinks. The dashboard tracks opening latency (silence the visitor feels), AI think time (hidden behind the opening), and stream duration separately. The "seamless response rate" measures how often the AI finishes before the opening ends.
 
-### 🟢 Operational
-- `LANGUAGE_SWITCH`: Language changed mid-session
-- `QUESTION_TYPE_SKEW`: Uneven question distribution
-- `SESSION_GAP`: Long pause between interactions
+**Faceted Filters** — Multi-select dropdowns for Topic, Language, and Sensitivity. Segmented control for latency range. Toggle buttons for anomalies-only and stop-commands-only. All composable.
 
-## Performance Baselines
+**Hover Explanations** — Every icon, badge, and symbol has a tooltip explaining what it means in plain English. Chart tooltips use bright white text on dark backgrounds.
 
-- **Opening sentence latency**: 691ms baseline, alert > 3000ms
-- **Real answer latency**: 3759ms baseline, alert > 6000ms
-- **Total E2E**: alert > 10000ms
+## Development
 
-## Context
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # Production build to dist/
+```
 
-The Rambam AI system:
-- Interactive holographic Maimonides (1138-1204 CE)
-- Located at Museum of Tolerance Jerusalem
-- Pipeline: visitor speech → STT → AI classification → LLM → TTS → hologram
-- Built by KPMG (AI/LLM) and Starcloud/David (Unreal Engine, TTS)
+## Processing New Logs
+
+```bash
+# Add raw log file
+cp ~/new-log.txt logs/YYYYMMDD.txt
+
+# Process all new logs
+python3 scripts/process_all_new.py
+
+# Verify and deploy
+npm run build
+git add public/data/accumulated.json logs/
+git commit -m "feat: Add log data for YYYY-MM-DD"
+git push origin main
+```
 
 ## Deployment
 
-### Deploy to Render
+Render static site `rambam-dash-v2` (Service ID: srv-d6fbtsggjchc73fl612g). Auto-deploys from `main` branch.
 
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete deployment instructions.
+- **Build command:** `npm run build`
+- **Publish directory:** `dist`
+- **Environment:** `OPENAI_KEY` available for future LLM features
 
-Quick steps:
-```bash
-# 1. Push to GitHub
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/rambam-log-dashboard.git
-git push -u origin main
+## The Rambam System
 
-# 2. Deploy to Render
-# - Go to https://dashboard.render.com
-# - Click "New" → "Blueprint"
-# - Connect your GitHub repo
-# - Render auto-configures from render.yaml
-```
-
-Your dashboard will be live at: `https://rambam-log-dashboard.onrender.com`
-
-**Note**: This requires a **Web Service** deployment (not static site) because it runs Python scripts server-side.
-
-## Development Notes
-
-- See `CLAUDE.md` for detailed architecture rules
-- Python scripts use newline-delimited JSON format
-- API handles file uploads up to 10MB
-- Temp files auto-cleaned after analysis
-- TypeScript strict mode enabled
-
-## Future Enhancements
-
-- [ ] Real-time log streaming from museum system
-- [ ] Historical trend analysis and comparisons
-- [ ] Automated daily reports via email
-- [ ] Multi-language UI support
-- [ ] Advanced filtering and search capabilities
-- [ ] PDF/Excel export functionality
-- [ ] Integration with WhatsApp alerts
+- Interactive holographic Maimonides (1138-1204 CE) at Museum of Tolerance Jerusalem
+- Pipeline: visitor speech → STT → AI classification → LLM response → TTS → holographic playback
+- Built by KPMG (AI/LLM) and Starcloud/David (Unreal Engine, TTS)
+- Logs: newline-delimited JSON capturing every visitor interaction
 
 ## Team
 
 - Daniel (project lead)
 - Talya/KPMG (AI/LLM)
-- David/Starcloud (infrastructure)
+- David/Starcloud (on-prem infrastructure)
 - Boris (daily QA)
 - Guy (hardware/IT)
+- Jonathan (dashboard, daily logs)
 
 ## License
 
-Internal use - Museum of Tolerance Jerusalem
+Internal use — Museum of Tolerance Jerusalem
