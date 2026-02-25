@@ -1,4 +1,5 @@
 services:
+  # Static dashboard
   - type: web
     name: rambam-dashboard-v2
     runtime: static
@@ -9,3 +10,19 @@ services:
       - path: /*
         name: Cache-Control
         value: public, max-age=3600
+    envVars:
+      - key: VITE_ASK_PROXY_URL
+        value: https://rambam-ask-proxy.onrender.com/ask
+
+  # OpenAI proxy for "Ask the Data"
+  - type: web
+    name: rambam-ask-proxy
+    runtime: node
+    branch: main
+    buildCommand: echo "no build needed"
+    startCommand: node api/openai-proxy.js
+    envVars:
+      - key: OPENAI_KEY
+        sync: false
+      - key: PORT
+        value: 10000

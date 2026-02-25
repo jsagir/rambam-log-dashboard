@@ -4,6 +4,7 @@ import { KPIBand } from '@/components/kpi/KPIBand'
 import { ContentIntelligence } from '@/components/content/ContentIntelligence'
 import { SystemHealth } from '@/components/health/SystemHealth'
 import { LatencyPanel } from '@/components/health/LatencyPanel'
+import { AskPanel } from '@/components/content/AskPanel'
 import { Loader2, TrendingUp, CalendarSearch, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ViewMode = 'cumulative' | 'drilldown'
@@ -239,6 +240,9 @@ export function App() {
           </span>
         </p>
       </footer>
+
+      {/* Sticky Ask the Data panel — always available */}
+      <AskPanel conversations={data.conversations} />
     </div>
   )
 }
