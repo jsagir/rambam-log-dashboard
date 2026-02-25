@@ -24,6 +24,8 @@ const TOOLTIP_STYLE = {
     fontWeight: 600,
     opacity: 0.97,
   },
+  labelStyle: { color: '#C8A961', fontWeight: 700 },
+  itemStyle: { color: '#FFFFFF' },
 }
 
 export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {

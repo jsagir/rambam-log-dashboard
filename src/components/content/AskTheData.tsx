@@ -376,19 +376,22 @@ function ResultCard({ conversation: c }: { conversation: Conversation }) {
       onClick={() => setExpanded(!expanded)}
     >
       <div className="px-4 py-3 flex items-center gap-2.5 text-sm">
-        <span className="text-base">{flag}</span>
-        <span className="text-parchment-dim font-mono text-xs">{c.date} {extractTime(c.time)}</span>
+        <span className="text-base" title={c.language === 'he-IL' ? 'Hebrew speaker' : c.language === 'en-US' ? 'English speaker' : 'Language unknown'}>{flag}</span>
+        <span className="text-parchment-dim font-mono text-xs" title={`Full time: ${c.time}`}>{c.date} {extractTime(c.time)}</span>
         <span
           className="px-1.5 py-0.5 rounded text-xs font-semibold"
           style={{ backgroundColor: topicColor + '18', color: topicColor }}
+          title={`Topic: ${c.topic}`}
         >
           {c.topic}
         </span>
         {c.is_thank_you_interrupt && (
-          <span className="text-xs font-bold text-critical">⏹ STOP</span>
+          <span className="text-xs font-bold text-critical" title="KILL SWITCH — Visitor said 'Thank you' to stop Rambam mid-sentence">⏹ STOP</span>
         )}
-        {c.is_anomaly && <span className="text-critical">⚠</span>}
-        <span className="ml-auto font-mono text-xs font-semibold" style={{ color: latColor }}>
+        {c.is_anomaly && (
+          <span className="text-critical cursor-help" title={c.anomalies.join(', ')}>⚠</span>
+        )}
+        <span className="ml-auto font-mono text-xs font-semibold" style={{ color: latColor }} title={`Response time: ${c.latency_ms}ms`}>
           {formatLatency(c.latency_ms)}
         </span>
         <ChevronDown size={14} className={`text-parchment-dim transition-transform ${expanded ? 'rotate-180' : ''}`} />

@@ -59,6 +59,8 @@ export function SystemHealth({ conversations, anomalyLog, dailyStats }: SystemHe
       fontWeight: 600,
       opacity: 0.97,
     },
+    labelStyle: { color: '#C8A961', fontWeight: 700 },
+    itemStyle: { color: '#FFFFFF' },
   }
 
   return (

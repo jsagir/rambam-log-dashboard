@@ -23,6 +23,8 @@ const CHART_TOOLTIP_STYLE = {
     fontWeight: 600,
     opacity: 0.97,
   },
+  labelStyle: { color: '#C8A961', fontWeight: 700 },
+  itemStyle: { color: '#FFFFFF' },
 }
 
 export function TopicCharts({ dailyStats, topicTrend, kpi }: TopicChartsProps) {
