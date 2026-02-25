@@ -47,6 +47,14 @@ export function ConversationCard({
               {c.sensitivity}
             </span>
           )}
+          {c.is_thank_you_interrupt && (
+            <span
+              className="px-2 py-0.5 rounded text-xs font-bold tracking-wide"
+              style={{ backgroundColor: '#D4A84333', color: '#D4A843', border: '1px solid #D4A84355' }}
+            >
+              STOP
+            </span>
+          )}
           {c.vip && (
             <span className="text-gold text-sm font-bold">★ VIP: {c.vip}</span>
           )}

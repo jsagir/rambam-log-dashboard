@@ -29,6 +29,11 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  const thankYouCount = useMemo(
+    () => conversations.filter((c) => c.is_thank_you_interrupt).length,
+    [conversations]
+  )
+
   const sorted = useMemo(() => {
     let items = [...conversations]
 
@@ -56,9 +61,9 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
   }, [conversations, sortMode, searchQuery])
 
   const tabs: { mode: SortMode; icon: React.ReactNode; label: string }[] = [
-    { mode: 'notable', icon: <Star size={16} />, label: 'Notable' },
-    { mode: 'recent', icon: <Clock size={16} />, label: 'Recent' },
-    { mode: 'review', icon: <AlertTriangle size={16} />, label: 'Review' },
+    { mode: 'notable', icon: <Star size={16} />, label: 'Most Interesting' },
+    { mode: 'recent', icon: <Clock size={16} />, label: 'Latest' },
+    { mode: 'review', icon: <AlertTriangle size={16} />, label: 'Needs Attention' },
     { mode: 'search', icon: <Search size={16} />, label: 'Search' },
   ]
 
@@ -90,6 +95,14 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
             autoFocus
           />
         )}
+        {thankYouCount > 0 && (
+          <span
+            className="text-sm font-semibold px-2 py-0.5 rounded"
+            style={{ backgroundColor: '#D4A84322', color: '#D4A843', border: '1px solid #D4A84333' }}
+          >
+            {thankYouCount} STOP{thankYouCount !== 1 ? 's' : ''}
+          </span>
+        )}
         <span className="text-sm text-parchment-dim ml-auto">
           {sorted.length} of {conversations.length}
         </span>
@@ -99,7 +112,7 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
       <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
         {sorted.length === 0 ? (
           <div className="text-center py-8 text-parchment-dim text-base">
-            No conversations match your filter.
+            No visitor questions match your filter.
           </div>
         ) : (
           sorted.map((convo) => (

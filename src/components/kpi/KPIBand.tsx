@@ -88,43 +88,43 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
     <section className="mb-8">
       <div className="flex gap-3 flex-wrap">
         <StatCard
-          label="Conversations"
+          label="Visitor Questions"
           value={formatNumber(stats.total)}
           icon={<MessageSquare size={18} />}
           sparkData={dailySpark}
-          subtitle={`${data.meta.total_days} days`}
-          tooltip="Total number of visitor interactions with the Rambam hologram. The sparkline shows the daily trend — peaks often indicate group tours."
+          subtitle={`Over ${data.meta.total_days} days`}
+          tooltip="This shows how many questions visitors asked Rambam. The small line chart shows the daily trend — peaks often mean group tours came through."
         />
         <StatCard
-          label="Avg Response"
+          label="Response Time"
           value={formatLatency(stats.avgLatency)}
           icon={<Clock size={18} />}
           sparkData={latencySpark}
           sparkColor={stats.avgLatency > 3000 ? '#C75B3A' : '#4A8F6F'}
-          subtitle={`Median: ${formatLatency(stats.medianLatency)} · P95: ${formatLatency(stats.p95Latency)}`}
-          tooltip="Average time from visitor question to Rambam's full response. Under 2s is good, 2-3s is acceptable, over 3s means visitors are waiting too long. Median and P95 show the typical and worst-case experience."
+          subtitle={`Typical: ${formatLatency(stats.medianLatency)} · Slowest 5%: ${formatLatency(stats.p95Latency)}`}
+          tooltip="This tells you how fast Rambam answers. Under 2 seconds is great, 2-3 seconds is okay, over 3 seconds means visitors are waiting too long. 'Typical' is the middle value; 'Slowest 5%' shows the worst experience."
         />
         <StatCard
-          label="Health"
+          label="System Status"
           value={`${stats.healthEmoji} ${stats.health}`}
           icon={<Activity size={18} />}
-          subtitle={`${stats.anomalies} anomalies`}
-          tooltip="Overall system health based on anomaly rate. Green = under 10% anomalies (normal). Yellow = 10-25% (some issues). Red = over 25% (needs attention). Anomalies include language detection failures, slow responses, and system errors."
+          subtitle={`${stats.anomalies} problems found`}
+          tooltip="This tells you if Rambam is working well overall. Green means things are running smoothly. Yellow means there are some issues. Red means something needs attention right away."
         />
         <StatCard
           label="Languages"
           value={`${stats.hebrewPct}% Hebrew`}
           icon={<Languages size={18} />}
-          subtitle={`${Object.keys(stats.langCounts).length} detected`}
-          tooltip="Language split of visitor questions. The system supports Hebrew and English. 'Unknown' language usually means Russian or Arabic speakers — these trigger comprehension failures."
+          subtitle={`${Object.keys(stats.langCounts).length} languages heard`}
+          tooltip="This shows what languages visitors speak. Rambam understands Hebrew and English. 'Unknown' usually means Russian or Arabic speakers who Rambam cannot understand yet."
         />
         <StatCard
-          label="Anomalies"
+          label="Problems"
           value={stats.anomalies}
           icon={<AlertTriangle size={18} />}
           sparkColor="#C75B3A"
-          subtitle={`${data.kpi.anomaly_rate}% rate`}
-          tooltip="Interactions where something went wrong: language not detected, response too slow (over 3s), system error, or Rambam couldn't understand the question. Lower is better."
+          subtitle={`${data.kpi.anomaly_rate}% of all questions`}
+          tooltip="This shows how many times something went wrong: Rambam was too slow, could not understand the visitor, or had a system error. Lower is better."
         />
       </div>
     </section>

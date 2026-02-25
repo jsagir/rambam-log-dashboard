@@ -95,6 +95,7 @@ export interface Conversation {
   chunk_count: number
   is_complete: boolean
   is_greeting: boolean
+  is_thank_you_interrupt: boolean
   is_comprehension_failure: boolean
   is_no_answer: boolean
   is_anomaly: boolean

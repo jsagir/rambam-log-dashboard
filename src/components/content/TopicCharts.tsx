@@ -82,7 +82,7 @@ export function TopicCharts({ dailyStats, topicTrend, kpi }: TopicChartsProps) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Topic Distribution */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="What are visitors asking Rambam about? Shows the most popular topics across all conversations. High 'General' percentage may indicate classification needs tuning.">Topic Distribution</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This shows the most popular subjects visitors ask about. If 'General' is very high, it may mean some questions are not being classified well.">Most Popular Topics</h3>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={topicData} layout="vertical" margin={{ left: 100 }}>
             <XAxis type="number" stroke="#D0C8B8" fontSize={13} />
@@ -99,7 +99,7 @@ export function TopicCharts({ dailyStats, topicTrend, kpi }: TopicChartsProps) {
 
       {/* Language Split */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="Hebrew vs English vs Unknown. 'Unknown' usually means Russian or Arabic speakers — these visitors can't communicate with Rambam effectively.">Language Distribution</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This shows which languages visitors speak. 'Unknown' usually means Russian or Arabic speakers that Rambam cannot understand yet.">Languages Spoken</h3>
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
             <Pie
@@ -124,21 +124,21 @@ export function TopicCharts({ dailyStats, topicTrend, kpi }: TopicChartsProps) {
 
       {/* Daily Volume */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="How many conversations happened each day? Red bars show anomalies (errors, slow responses). Spikes often correlate with group tours.">Daily Volume</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This shows how many visitor questions Rambam received each day. Red bars are problems (errors or slow answers). Busy days often mean group tours.">Questions per Day</h3>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={dailyVolume}>
             <XAxis dataKey="date" stroke="#D0C8B8" fontSize={13} />
             <YAxis stroke="#D0C8B8" fontSize={13} />
             <Tooltip {...CHART_TOOLTIP_STYLE} />
-            <Bar dataKey="total" fill="#C8A961" radius={[4, 4, 0, 0]} name="Total" />
-            <Bar dataKey="anomalies" fill="#C75B3A" radius={[4, 4, 0, 0]} name="Anomalies" />
+            <Bar dataKey="total" fill="#C8A961" radius={[4, 4, 0, 0]} name="Questions" />
+            <Bar dataKey="anomalies" fill="#C75B3A" radius={[4, 4, 0, 0]} name="Problems" />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       {/* Hourly Activity */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="What time of day do visitors talk to Rambam? Peaks usually align with museum tour schedules. Useful for staffing and maintenance planning.">Hourly Activity (All Days)</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This shows what time of day visitors talk to Rambam. Peaks usually match tour schedules. Helpful for planning maintenance or staffing.">Busiest Hours of the Day</h3>
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={hourlyData}>
             <XAxis dataKey="hour" stroke="#D0C8B8" fontSize={13} />
@@ -157,7 +157,7 @@ export function TopicCharts({ dailyStats, topicTrend, kpi }: TopicChartsProps) {
 
       {/* Topic Trends Over Time */}
       <div className="bg-card border border-border rounded-lg p-4 lg:col-span-2">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="How topic popularity changes day by day. Rising topics may indicate a current event or new exhibit. Useful for understanding visitor interest shifts.">Topic Trends Over Time</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This shows how visitor interest in each topic changes day by day. A rising topic may mean a current event or new exhibit is drawing attention.">How Topics Change Day by Day</h3>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={topicTrend}>
             <XAxis dataKey="date" stroke="#D0C8B8" fontSize={13} tickFormatter={(d) => d.slice(5)} />

@@ -25,7 +25,7 @@ export function ContentIntelligence({
   return (
     <section className="mb-8">
       <div className="flex items-center gap-4 mb-4">
-        <h2 className="font-serif text-2xl text-gold" title="What visitors are asking about and how well Rambam is responding. Use the tabs to browse conversations or see topic trends.">Content Intelligence</h2>
+        <h2 className="font-serif text-2xl text-gold" title="This shows what visitors are asking Rambam about. Browse individual conversations or see topic trends in the charts.">What Visitors Are Asking</h2>
         <div className="flex bg-card border border-border rounded-md overflow-hidden text-base">
           <button
             onClick={() => setActiveTab('feed')}
@@ -35,7 +35,7 @@ export function ContentIntelligence({
                 : 'text-text-dim hover:text-parchment'
             }`}
           >
-            Conversations
+            Visitor Questions
           </button>
           <button
             onClick={() => setActiveTab('charts')}
@@ -45,7 +45,7 @@ export function ContentIntelligence({
                 : 'text-text-dim hover:text-parchment'
             }`}
           >
-            Topics & Charts
+            Topics & Trends
           </button>
         </div>
       </div>

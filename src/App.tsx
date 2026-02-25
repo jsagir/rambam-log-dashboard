@@ -49,7 +49,7 @@ export function App() {
           <div className="flex items-center gap-4">
             <img src="/motj-logo.png" alt="Museum of Tolerance Jerusalem" className="h-10 object-contain" />
             <div>
-              <h1 className="font-serif text-4xl text-gold">Rambam AI Dashboard</h1>
+              <h1 className="font-serif text-4xl text-gold">Rambam Visitor Dashboard</h1>
               <p className="text-parchment-dim text-base mt-1">
                 Museum of Tolerance Jerusalem &middot; {data.meta.date_range[0]} to {data.meta.date_range[1]}
               </p>
@@ -65,7 +65,7 @@ export function App() {
                   : 'bg-card border-border text-text-dim'
               }`}
             >
-              {showTranslations ? 'EN Translations ON' : 'EN Translations OFF'}
+              {showTranslations ? 'Show English ON' : 'Show English OFF'}
             </button>
             {/* Date filter */}
             <select
@@ -85,7 +85,7 @@ export function App() {
       {/* Zone 1: KPI Band */}
       <KPIBand data={data} selectedDate={selectedDate} />
 
-      {/* Zone 2: Content Intelligence */}
+      {/* Zone 2: What Visitors Are Asking */}
       <ContentIntelligence
         conversations={filteredConversations}
         dailyStats={data.daily_stats}
@@ -94,13 +94,13 @@ export function App() {
         showTranslations={showTranslations}
       />
 
-      {/* Zone 2.5: Latency Deep Dive (Daniel's priority) */}
+      {/* Zone 2.5: Response Speed */}
       <LatencyPanel
         conversations={filteredConversations}
         dailyStats={data.daily_stats}
       />
 
-      {/* Zone 3: System Health */}
+      {/* Zone 3: System Issues */}
       <SystemHealth
         conversations={filteredConversations}
         anomalyLog={data.anomaly_log}

@@ -155,22 +155,23 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
   return (
     <section className="mb-8">
-      <h2 className="font-serif text-2xl text-gold mb-6" title="How fast is Rambam responding? This section breaks down response times from every angle — averages, percentiles, by topic, by time of day, and highlights the slowest interactions.">Latency Deep Dive</h2>
+      <h2 className="font-serif text-2xl text-gold mb-6" title="This section shows how fast Rambam answers visitors. You can see average speed, which topics are slowest, what time of day is worst, and the individual slowest responses.">Response Speed</h2>
 
       {/* Summary stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
         {[
-          { label: 'Average', value: stats.avg, color: getLatencyColor(stats.avg) },
-          { label: 'Median', value: stats.median, color: getLatencyColor(stats.median) },
-          { label: 'P75', value: stats.p75, color: getLatencyColor(stats.p75) },
-          { label: 'P90', value: stats.p90, color: getLatencyColor(stats.p90) },
-          { label: 'P95', value: stats.p95, color: getLatencyColor(stats.p95) },
-          { label: 'P99', value: stats.p99, color: getLatencyColor(stats.p99) },
-          { label: 'Min', value: stats.min, color: '#4A8F6F' },
-          { label: 'Max', value: stats.max, color: '#C75B3A' },
+          { label: 'Average', sublabel: '', value: stats.avg, color: getLatencyColor(stats.avg) },
+          { label: 'Typical', sublabel: '(median)', value: stats.median, color: getLatencyColor(stats.median) },
+          { label: '75% of visitors', sublabel: 'P75', value: stats.p75, color: getLatencyColor(stats.p75) },
+          { label: '90% of visitors', sublabel: 'P90', value: stats.p90, color: getLatencyColor(stats.p90) },
+          { label: '95% of visitors', sublabel: 'P95', value: stats.p95, color: getLatencyColor(stats.p95) },
+          { label: '99% of visitors', sublabel: 'P99', value: stats.p99, color: getLatencyColor(stats.p99) },
+          { label: 'Fastest', sublabel: '', value: stats.min, color: '#4A8F6F' },
+          { label: 'Slowest', sublabel: '', value: stats.max, color: '#C75B3A' },
         ].map((s) => (
           <div key={s.label} className="bg-card border border-border rounded-lg p-3 text-center">
             <div className="text-xs text-parchment-dim uppercase tracking-wide">{s.label}</div>
+            {s.sublabel && <div className="text-[10px] text-parchment-dim">{s.sublabel}</div>}
             <div className="text-lg font-bold font-mono" style={{ color: s.color }}>
               {formatLatency(s.value)}
             </div>
@@ -180,11 +181,11 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
       {/* SLA compliance bar */}
       <div className="bg-card border border-border rounded-lg p-4 mb-6">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="How many responses meet the speed targets? Under 2s is ideal, 2-3s is tolerable, over 3s means visitors are waiting too long.">SLA Compliance</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="This tells you how many answers met our speed targets. Under 2 seconds is ideal, 2-3 seconds is acceptable, over 3 seconds means visitors waited too long.">Speed Targets</h3>
         <div className="flex gap-4 items-end text-sm">
           <div className="flex-1">
             <div className="flex justify-between text-xs text-parchment-dim mb-1">
-              <span>&lt;2s (Good)</span>
+              <span>&lt;2s (Fast)</span>
               <span>{stats.under2s} ({Math.round(stats.under2s / stats.total * 100)}%)</span>
             </div>
             <div className="h-4 rounded bg-background overflow-hidden">
@@ -193,7 +194,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
           </div>
           <div className="flex-1">
             <div className="flex justify-between text-xs text-parchment-dim mb-1">
-              <span>2-3s (Warning)</span>
+              <span>2-3s (Okay)</span>
               <span>{stats.between2and3s} ({Math.round(stats.between2and3s / stats.total * 100)}%)</span>
             </div>
             <div className="h-4 rounded bg-background overflow-hidden">
@@ -202,7 +203,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
           </div>
           <div className="flex-1">
             <div className="flex justify-between text-xs text-parchment-dim mb-1">
-              <span>&gt;3s (Critical)</span>
+              <span>&gt;3s (Too Slow)</span>
               <span>{stats.over3s} ({Math.round(stats.over3s / stats.total * 100)}%)</span>
             </div>
             <div className="h-4 rounded bg-background overflow-hidden">
@@ -215,7 +216,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Latency distribution histogram */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="How response times are spread across time buckets. Most responses should cluster in the green (under 2s) range.">Latency Distribution</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="This shows how many answers fell into each speed range. Most should be in the green (under 2 seconds). Red means visitors waited too long.">Speed Breakdown</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={histogram}>
               <XAxis dataKey="range" stroke="#D0C8B8" fontSize={13} />
@@ -232,14 +233,14 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
         {/* Per-interaction scatter */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="Every single response plotted by time. Dots above the dashed lines (2s yellow, 3s red) are too slow. Clusters of red dots suggest a systemic issue.">Per-Interaction Latency</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="Every single answer is shown as a dot. Dots above the dashed lines were too slow. Clusters of red dots mean a recurring problem.">Speed per Question</h3>
           <ResponsiveContainer width="100%" height={200}>
             <ScatterChart>
               <XAxis dataKey="idx" stroke="#D0C8B8" fontSize={13} />
               <YAxis dataKey="latency" stroke="#D0C8B8" fontSize={13} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Total Latency']} />
-              <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="4 4" label={{ value: '3s critical', fill: '#C75B3A', fontSize: 11 }} />
-              <ReferenceLine y={2000} stroke="#D4A843" strokeDasharray="4 4" label={{ value: '2s warning', fill: '#D4A843', fontSize: 11 }} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Response Time']} />
+              <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="4 4" label={{ value: '3s too slow', fill: '#C75B3A', fontSize: 11 }} />
+              <ReferenceLine y={2000} stroke="#D4A843" strokeDasharray="4 4" label={{ value: '2s target', fill: '#D4A843', fontSize: 11 }} />
               <Scatter data={scatterData}>
                 {scatterData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} r={3} />
@@ -251,15 +252,15 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
         {/* Daily trend */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="Average and maximum response time per day. A rising trend means the system is getting slower over time — may need investigation.">Daily Latency Trend</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="This shows the average and worst response time each day. If the line is going up, Rambam is getting slower and may need attention.">Daily Speed Trend</h3>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={dailyTrend}>
               <XAxis dataKey="date" stroke="#D0C8B8" fontSize={13} />
               <YAxis stroke="#D0C8B8" fontSize={13} />
               <Tooltip {...TOOLTIP_STYLE} />
-              <Area type="monotone" dataKey="min" stackId="range" stroke="none" fill="#4A8F6F" fillOpacity={0.2} name="Min" />
-              <Area type="monotone" dataKey="avg" stackId="none" stroke="#C8A961" fill="#C8A961" fillOpacity={0.1} strokeWidth={2} name="Avg" />
-              <Line type="monotone" dataKey="max" stroke="#C75B3A" strokeWidth={1} strokeDasharray="4 4" dot={false} name="Max" />
+              <Area type="monotone" dataKey="min" stackId="range" stroke="none" fill="#4A8F6F" fillOpacity={0.2} name="Fastest" />
+              <Area type="monotone" dataKey="avg" stackId="none" stroke="#C8A961" fill="#C8A961" fillOpacity={0.1} strokeWidth={2} name="Average" />
+              <Line type="monotone" dataKey="max" stroke="#C75B3A" strokeWidth={1} strokeDasharray="4 4" dot={false} name="Slowest" />
               <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="2 4" />
             </AreaChart>
           </ResponsiveContainer>
@@ -267,13 +268,13 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
         {/* Hourly latency pattern */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="Are there specific hours when Rambam is slower? Red bars mean that hour averages over 3 seconds. Useful for identifying peak-load times.">Latency by Hour of Day</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="This shows which hours of the day Rambam is slowest. Red bars mean that hour averaged over 3 seconds. Helps identify when the system is overloaded.">Speed by Time of Day</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={hourlyLatency}>
               <XAxis dataKey="hour" stroke="#D0C8B8" fontSize={13} />
               <YAxis stroke="#D0C8B8" fontSize={13} />
               <Tooltip {...TOOLTIP_STYLE} />
-              <Bar dataKey="avg" name="Avg Latency" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="avg" name="Avg Response Time" radius={[4, 4, 0, 0]}>
                 {hourlyLatency.map((entry, i) => (
                   <Cell key={i} fill={getLatencyColor(entry.avg)} />
                 ))}
@@ -284,12 +285,12 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
         {/* Latency by topic */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="Do certain topics take longer to answer? Complex topics like Interfaith or Torah Study may require more processing time.">Avg Latency by Topic</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="This shows which topics take longer for Rambam to answer. Complex subjects like Interfaith or Torah Study often need more thinking time.">Speed by Topic</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={latencyByTopic} layout="vertical" margin={{ left: 100 }}>
               <XAxis type="number" stroke="#D0C8B8" fontSize={13} />
               <YAxis type="category" dataKey="topic" stroke="#D0C8B8" fontSize={13} width={95} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Avg Latency']} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Avg Response Time']} />
               <Bar dataKey="avg" radius={[0, 4, 4, 0]}>
                 {latencyByTopic.map((entry, i) => (
                   <Cell key={i} fill={entry.fill} />
@@ -301,7 +302,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
         {/* Latency by language */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-base font-semibold text-parchment mb-4" title="Does the system respond faster in Hebrew or English? Unknown language conversations are often slower due to fallback processing.">Latency by Language</h3>
+          <h3 className="text-base font-semibold text-parchment mb-4" title="This shows whether Rambam answers faster in Hebrew or English. Unknown language questions are often slower because Rambam struggles to understand them.">Speed by Language</h3>
           <div className="space-y-3">
             {latencyByLang.map(({ lang, avg, count }) => (
               <div key={lang} className="flex items-center gap-3">
@@ -327,7 +328,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
       {/* Slowest conversations table */}
       <div className="bg-card border border-border rounded-lg p-4 mt-6">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="The 10 interactions where Rambam took the longest to respond. These are the worst visitor experiences — check if there's a pattern (same topic, same time of day, same language).">Top 10 Slowest Responses</h3>
+        <h3 className="text-base font-semibold text-parchment mb-4" title="These are the 10 questions where visitors waited the longest. Look for patterns: same topic, same time of day, or same language might reveal the cause.">10 Slowest Answers</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -335,7 +336,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                 <th className="pb-2 pr-3">#</th>
                 <th className="pb-2 pr-3">Date</th>
                 <th className="pb-2 pr-3">Time</th>
-                <th className="pb-2 pr-3">Latency</th>
+                <th className="pb-2 pr-3">Wait Time</th>
                 <th className="pb-2 pr-3">Topic</th>
                 <th className="pb-2 pr-3">Lang</th>
                 <th className="pb-2">Question</th>

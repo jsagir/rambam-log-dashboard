@@ -68,6 +68,12 @@ GREETING_PATTERNS = [
     'תודה', 'thank', 'bye', 'להתראות', 'שלום רב',
 ]
 
+# "Thank you" is a SAFE WORD in the Rambam hologram system.
+# Visitors say it to interrupt and stop Rambam mid-sentence.
+THANK_YOU_PATTERNS = [
+    'תודה רבה', 'תודה', 'thank you', 'thanks', 'todah', 'toda',
+]
+
 SENSITIVITY_MAP = {
     'Military & Draft': 'high',
     'Interfaith': 'critical',
@@ -113,6 +119,15 @@ def is_greeting(text):
         if p in text_lower:
             return True
     return len(text.strip()) < 15
+
+
+def is_thank_you(text):
+    """Check if text is a thank-you / todah safe-word pattern."""
+    text_lower = text.lower().strip()
+    for p in THANK_YOU_PATTERNS:
+        if p in text_lower:
+            return True
+    return False
 
 
 def detect_language(text):
@@ -389,6 +404,7 @@ def group_interactions(entries):
                 if isinstance(ae.get('msg', {}), dict) and isinstance(ae.get('msg', {}).get('data', {}), dict)
             ),
             'is_greeting': is_greeting(question) if question else False,
+            'is_thank_you_interrupt': is_thank_you(question) if question else False,
             'is_comprehension_failure': is_comprehension_failure,
             'is_no_answer': not full_answer.strip(),
             'is_anomaly': len(anomalies) > 0,
@@ -425,6 +441,7 @@ def group_interactions(entries):
                 'chunk_count': 0,
                 'is_complete': False,
                 'is_greeting': is_greeting(question),
+                'is_thank_you_interrupt': is_thank_you(question) if question else False,
                 'is_comprehension_failure': False,
                 'is_no_answer': True,
                 'is_anomaly': True,
