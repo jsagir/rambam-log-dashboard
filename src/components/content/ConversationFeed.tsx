@@ -29,8 +29,13 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const thankYouCount = useMemo(
+  const stopCount = useMemo(
     () => conversations.filter((c) => c.is_thank_you_interrupt).length,
+    [conversations]
+  )
+
+  const politeCount = useMemo(
+    () => conversations.filter((c) => c.thank_you_type === 'polite').length,
     [conversations]
   )
 
@@ -95,12 +100,20 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
             autoFocus
           />
         )}
-        {thankYouCount > 0 && (
+        {stopCount > 0 && (
           <span
             className="text-sm font-semibold px-2 py-0.5 rounded"
-            style={{ backgroundColor: '#D4A84322', color: '#D4A843', border: '1px solid #D4A84333' }}
+            style={{ backgroundColor: '#C75B3A22', color: '#C75B3A', border: '1px solid #C75B3A33' }}
           >
-            {thankYouCount} STOP{thankYouCount !== 1 ? 's' : ''}
+            ⏹ {stopCount} Kill Switch{stopCount !== 1 ? 'es' : ''}
+          </span>
+        )}
+        {politeCount > 0 && (
+          <span
+            className="text-sm font-semibold px-2 py-0.5 rounded"
+            style={{ backgroundColor: '#4A8F6F22', color: '#4A8F6F', border: '1px solid #4A8F6F33' }}
+          >
+            🙏 {politeCount} Thank{politeCount !== 1 ? 's' : ''}
           </span>
         )}
         <span className="text-sm text-parchment-dim ml-auto">

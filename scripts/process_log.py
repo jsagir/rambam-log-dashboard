@@ -68,10 +68,20 @@ GREETING_PATTERNS = [
     'תודה', 'thank', 'bye', 'להתראות', 'שלום רב',
 ]
 
-# "Thank you" is a SAFE WORD in the Rambam hologram system.
-# Visitors say it to interrupt and stop Rambam mid-sentence.
-THANK_YOU_PATTERNS = [
-    'תודה רבה', 'תודה', 'thank you', 'thanks', 'todah', 'toda',
+# STOP SAFE WORD: Only ENGLISH "Thank you" kills Rambam mid-sentence.
+# Hebrew "תודה" does NOT trigger the stop — it's just polite conversation.
+STOP_PATTERNS = [
+    'thank you', 'thanks',
+]
+# Continuation phrases that negate a stop (e.g., "Thank you but what about...")
+STOP_NEGATION_PATTERNS = [
+    'but ', 'but,', 'however', 'what about', 'and ', 'also ', 'one more',
+    'tell me', 'can you', 'what is', 'how ', 'why ', 'where ',
+    'אבל', 'מה עם', 'ועוד',
+]
+# Hebrew thank-you — polite, NOT a kill switch
+HEBREW_THANKS_PATTERNS = [
+    'תודה רבה', 'תודה',
 ]
 
 SENSITIVITY_MAP = {
@@ -121,13 +131,47 @@ def is_greeting(text):
     return len(text.strip()) < 15
 
 
-def is_thank_you(text):
-    """Check if text is a thank-you / todah safe-word pattern."""
+def classify_thank_you(text):
+    """Classify thank-you type: 'stop' (English kill switch), 'polite' (Hebrew thanks), or None.
+
+    Only English "Thank you" triggers the Rambam STOP.
+    Hebrew "תודה" is just politeness, not a control signal.
+    "Thank you but..." / "Thank you. Tell me about..." is a continuation, not a stop.
+    """
     text_lower = text.lower().strip()
-    for p in THANK_YOU_PATTERNS:
+
+    # Check Hebrew thanks first (polite, not a kill switch)
+    for p in HEBREW_THANKS_PATTERNS:
         if p in text_lower:
-            return True
-    return False
+            return 'polite'
+
+    # Check English stop patterns
+    has_stop = any(p in text_lower for p in STOP_PATTERNS)
+    if not has_stop:
+        return None
+
+    # Check for continuation phrases — "Thank you but what about..." is NOT a stop
+    for neg in STOP_NEGATION_PATTERNS:
+        if neg in text_lower:
+            return None
+
+    # Pure thank-you with maybe politeness additions (sir, Rambam, very much, etc.)
+    # but no substantive follow-up question = STOP command
+    # Remove the thank-you and polite additions to see if anything substantive remains
+    remainder = text_lower
+    for p in STOP_PATTERNS:
+        remainder = remainder.replace(p, '')
+    # Strip common polite filler
+    for filler in [',', '.', '!', 'very much', 'so much', 'sir', 'rambam',
+                   'for sharing', 'for your', 'for that', 'thank', 'thanks']:
+        remainder = remainder.replace(filler, '')
+    remainder = remainder.strip()
+
+    # If there's still significant text left, it's a continuation not a stop
+    if len(remainder) > 10:
+        return None
+
+    return 'stop'
 
 
 def detect_language(text):
@@ -404,7 +448,8 @@ def group_interactions(entries):
                 if isinstance(ae.get('msg', {}), dict) and isinstance(ae.get('msg', {}).get('data', {}), dict)
             ),
             'is_greeting': is_greeting(question) if question else False,
-            'is_thank_you_interrupt': is_thank_you(question) if question else False,
+            'is_thank_you_interrupt': classify_thank_you(question) == 'stop' if question else False,
+            'thank_you_type': classify_thank_you(question) if question else None,
             'is_comprehension_failure': is_comprehension_failure,
             'is_no_answer': not full_answer.strip(),
             'is_anomaly': len(anomalies) > 0,
@@ -441,7 +486,8 @@ def group_interactions(entries):
                 'chunk_count': 0,
                 'is_complete': False,
                 'is_greeting': is_greeting(question),
-                'is_thank_you_interrupt': is_thank_you(question) if question else False,
+                'is_thank_you_interrupt': classify_thank_you(question) == 'stop' if question else False,
+                'thank_you_type': classify_thank_you(question) if question else None,
                 'is_comprehension_failure': False,
                 'is_no_answer': True,
                 'is_anomaly': True,

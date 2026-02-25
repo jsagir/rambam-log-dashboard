@@ -96,6 +96,7 @@ export interface Conversation {
   is_complete: boolean
   is_greeting: boolean
   is_thank_you_interrupt: boolean
+  thank_you_type: 'stop' | 'polite' | null
   is_comprehension_failure: boolean
   is_no_answer: boolean
   is_anomaly: boolean

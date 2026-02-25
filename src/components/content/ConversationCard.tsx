@@ -50,9 +50,17 @@ export function ConversationCard({
           {c.is_thank_you_interrupt && (
             <span
               className="px-2 py-0.5 rounded text-xs font-bold tracking-wide"
-              style={{ backgroundColor: '#D4A84333', color: '#D4A843', border: '1px solid #D4A84355' }}
+              style={{ backgroundColor: '#C75B3A33', color: '#C75B3A', border: '1px solid #C75B3A55' }}
             >
-              STOP
+              ⏹ STOP
+            </span>
+          )}
+          {c.thank_you_type === 'polite' && (
+            <span
+              className="px-2 py-0.5 rounded text-xs font-semibold"
+              style={{ backgroundColor: '#4A8F6F22', color: '#4A8F6F', border: '1px solid #4A8F6F33' }}
+            >
+              🙏 Thanks
             </span>
           )}
           {c.vip && (
