@@ -16,11 +16,13 @@ interface LatencyPanelProps {
 
 const TOOLTIP_STYLE = {
   contentStyle: {
-    backgroundColor: '#252019',
-    border: '1px solid #3A332A',
+    backgroundColor: '#1C1914',
+    border: '1px solid #C8A961',
     borderRadius: '8px',
-    color: '#F5F0E8',
-    fontSize: '12px',
+    color: '#FFFFFF',
+    fontSize: '13px',
+    fontWeight: 600,
+    opacity: 0.97,
   },
 }
 
@@ -235,9 +237,9 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
             <ScatterChart>
               <XAxis dataKey="idx" stroke="#D0C8B8" fontSize={13} />
               <YAxis dataKey="latency" stroke="#D0C8B8" fontSize={13} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()}ms`, 'Latency']} />
-              <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="4 4" label={{ value: '3s', fill: '#C75B3A', fontSize: 10 }} />
-              <ReferenceLine y={2000} stroke="#D4A843" strokeDasharray="4 4" label={{ value: '2s', fill: '#D4A843', fontSize: 10 }} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Total Latency']} />
+              <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="4 4" label={{ value: '3s critical', fill: '#C75B3A', fontSize: 11 }} />
+              <ReferenceLine y={2000} stroke="#D4A843" strokeDasharray="4 4" label={{ value: '2s warning', fill: '#D4A843', fontSize: 11 }} />
               <Scatter data={scatterData}>
                 {scatterData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} r={3} />
@@ -287,7 +289,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
             <BarChart data={latencyByTopic} layout="vertical" margin={{ left: 100 }}>
               <XAxis type="number" stroke="#D0C8B8" fontSize={13} />
               <YAxis type="category" dataKey="topic" stroke="#D0C8B8" fontSize={13} width={95} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()}ms`, 'Avg Latency']} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${(v/1000).toFixed(1)}s (${v.toLocaleString()}ms)`, 'Avg Latency']} />
               <Bar dataKey="avg" radius={[0, 4, 4, 0]}>
                 {latencyByTopic.map((entry, i) => (
                   <Cell key={i} fill={entry.fill} />

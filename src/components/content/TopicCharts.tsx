@@ -15,11 +15,13 @@ interface TopicChartsProps {
 
 const CHART_TOOLTIP_STYLE = {
   contentStyle: {
-    backgroundColor: '#252019',
-    border: '1px solid #3A332A',
+    backgroundColor: '#1C1914',
+    border: '1px solid #C8A961',
     borderRadius: '8px',
-    color: '#F5F0E8',
-    fontSize: '12px',
+    color: '#FFFFFF',
+    fontSize: '13px',
+    fontWeight: 600,
+    opacity: 0.97,
   },
 }
 

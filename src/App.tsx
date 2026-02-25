@@ -46,11 +46,14 @@ export function App() {
       {/* Header */}
       <header className="mb-8">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="font-serif text-4xl text-gold">Rambam AI Dashboard</h1>
-            <p className="text-parchment-dim text-base mt-1">
-              Museum of Tolerance Jerusalem &middot; {data.meta.date_range[0]} to {data.meta.date_range[1]}
-            </p>
+          <div className="flex items-center gap-4">
+            <img src="/motj-logo.png" alt="Museum of Tolerance Jerusalem" className="h-10 object-contain" />
+            <div>
+              <h1 className="font-serif text-4xl text-gold">Rambam AI Dashboard</h1>
+              <p className="text-parchment-dim text-base mt-1">
+                Museum of Tolerance Jerusalem &middot; {data.meta.date_range[0]} to {data.meta.date_range[1]}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {/* Translation toggle */}
