@@ -5,6 +5,7 @@ import { ContentIntelligence } from '@/components/content/ContentIntelligence'
 import { SystemHealth } from '@/components/health/SystemHealth'
 import { LatencyPanel } from '@/components/health/LatencyPanel'
 import { AskPanel } from '@/components/content/AskPanel'
+import { TalkWithRambam } from '@/components/content/TalkWithRambam'
 import { Loader2, TrendingUp, CalendarSearch, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ViewMode = 'cumulative' | 'drilldown'
@@ -220,6 +221,9 @@ export function App() {
         anomalyLog={data.anomaly_log}
         dailyStats={data.daily_stats}
       />
+
+      {/* Zone 4: Talk with Rambam (live API demo) */}
+      <TalkWithRambam />
 
       {/* Footer */}
       <footer className="mt-12 pt-6 border-t border-border/30 text-center">
