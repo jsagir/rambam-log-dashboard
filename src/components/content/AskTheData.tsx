@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Send, Sparkles, ChevronDown, Loader2 } from 'lucide-react'
 import type { Conversation } from '@/types/dashboard'
 import { TOPIC_COLORS, LANG_FLAGS } from '@/types/dashboard'
@@ -11,116 +11,359 @@ interface AskTheDataProps {
 interface QueryResult {
   question: string
   answer: string
+  stats?: string[]
   conversations: Conversation[]
-  cypherQuery?: string
   timestamp: number
 }
 
 const SUGGESTED_QUESTIONS = [
-  { label: 'Sensitive topics', query: 'Show me conversations with high or critical sensitivity' },
-  { label: 'Slowest answers', query: 'Which conversations had the longest response time?' },
-  { label: 'Hebrew vs English', query: 'How do Hebrew and English conversations compare?' },
-  { label: 'Popular topics', query: 'What are the most discussed topics?' },
-  { label: 'System problems', query: 'Show all conversations with anomalies' },
-  { label: 'Comprehension fails', query: 'Which questions did Rambam fail to understand?' },
-  { label: 'Kill switch usage', query: 'Show all STOP command conversations' },
-  { label: 'Busiest days', query: 'Which days had the most visitor questions?' },
+  { label: 'Sensitive topics', query: 'Show me sensitive conversations' },
+  { label: 'Slowest answers', query: 'What caused long response times?' },
+  { label: 'Hebrew vs English', query: 'Compare Hebrew and English' },
+  { label: 'Popular topics', query: 'What topics are most popular?' },
+  { label: 'System problems', query: 'Show anomalies and problems' },
+  { label: 'Comprehension fails', query: 'When did Rambam not understand?' },
+  { label: 'Kill switch usage', query: 'Show stop commands' },
+  { label: 'Busiest days', query: 'Which days were busiest?' },
 ]
 
-/**
- * Phase 2 "Ask the Data" — local intelligence engine.
- * Currently runs client-side filters. Will upgrade to Kuzu-WASM + OpenAI
- * when conversation count exceeds 500.
- *
- * Architecture:
- *   v1 (now):  Natural language → client-side JS filter → result cards
- *   v2 (500+): Natural language → OpenAI → Cypher → Kuzu-WASM → result cards
- */
-function queryConversations(question: string, conversations: Conversation[]): QueryResult {
-  const q = question.toLowerCase()
-  let filtered = [...conversations]
-  let answer = ''
+// ──────────────────────────────────────────────
+// TOPIC SYNONYMS: maps user words → actual topic names
+// ──────────────────────────────────────────────
+const TOPIC_SYNONYMS: Record<string, string[]> = {
+  'Kashrut': ['kashrut', 'kosher', 'kasher', 'meat', 'dairy', 'milk', 'food', 'diet', 'eating', 'בשר', 'חלב', 'כשר'],
+  'Military & Draft': ['military', 'army', 'draft', 'soldier', 'idf', 'haredi', 'ultra-orthodox', 'yeshiva', 'צבא', 'גיוס', 'חרדי'],
+  'Interfaith': ['interfaith', 'christian', 'islam', 'muslim', 'jesus', 'church', 'mosque', 'religion', 'נצרות', 'ישו', 'מוסלמ'],
+  'Theology': ['theology', 'god', 'divine', 'soul', 'faith', 'belief', 'creator', 'spiritual', 'אלוהים', 'נשמה', 'אמונה'],
+  'Torah & Text': ['torah', 'talmud', 'bible', 'scripture', 'parsha', 'text', 'verse', 'study', 'תורה', 'תלמוד', 'פרשת'],
+  'Jewish Law': ['jewish law', 'halacha', 'halakha', 'halachic', 'mitzvah', 'mitzva', 'commandment', 'shabbat', 'sabbath', 'הלכה', 'מצוו', 'שבת'],
+  'Philosophy': ['philosophy', 'wisdom', 'ethics', 'moral', 'virtue', 'truth', 'meaning', 'tolerance', 'justice', 'חכמה', 'מוסר'],
+  'Personal Life': ['personal', 'family', 'child', 'children', 'education', 'medicine', 'health', 'doctor', 'advice', 'anger', 'חינוך', 'רפואה'],
+  'History': ['history', 'historical', 'egypt', 'spain', 'where live', 'born', 'biography', 'life', 'מצרים', 'ספרד', 'תולדות'],
+  'Relationships': ['relationship', 'love', 'marriage', 'couple', 'dating', 'spouse', 'אהבה', 'נישואין', 'זוגיות'],
+  'Meta': ['meta', 'museum', 'hologram', 'robot', 'ai', 'artificial', 'technology', 'installation', 'מוזיאון', 'הולוגרמ'],
+  'Blessings': ['blessing', 'bless', 'prayer', 'pray', 'ברכ', 'תפילה'],
+  'Daily Life': ['daily', 'coffee', 'sleep', 'morning', 'routine', 'wash', 'tea', 'breakfast', 'קפה', 'שנת'],
+  'Greetings': ['greeting', 'hello', 'goodbye', 'hi', 'welcome', 'שלום', 'בוקר טוב'],
+}
 
-  // Sensitivity queries
-  if (q.includes('sensitive') || q.includes('sensitivity') || q.includes('critical')) {
-    filtered = filtered.filter((c) => c.sensitivity === 'high' || c.sensitivity === 'critical')
-    answer = `Found ${filtered.length} conversations with high or critical sensitivity.`
+// ──────────────────────────────────────────────
+// INTENT DETECTION: what is the user asking about?
+// ──────────────────────────────────────────────
+type Intent =
+  | { type: 'topic'; topic: string }
+  | { type: 'slow' }
+  | { type: 'fast' }
+  | { type: 'language_compare' }
+  | { type: 'language_filter'; lang: string }
+  | { type: 'popular_topics' }
+  | { type: 'anomalies' }
+  | { type: 'comprehension_fail' }
+  | { type: 'stop_commands' }
+  | { type: 'busiest_days' }
+  | { type: 'sensitive' }
+  | { type: 'vip' }
+  | { type: 'no_answer' }
+  | { type: 'greetings' }
+  | { type: 'date_filter'; date: string }
+  | { type: 'out_of_order' }
+  | { type: 'text_search'; terms: string[] }
+
+function detectIntents(q: string): Intent[] {
+  const intents: Intent[] = []
+  const lower = q.toLowerCase().replace(/[?!.,;:]/g, '').trim()
+  const words = lower.split(/\s+/)
+
+  // Topic matching via synonyms
+  for (const [topic, synonyms] of Object.entries(TOPIC_SYNONYMS)) {
+    for (const syn of synonyms) {
+      if (lower.includes(syn)) {
+        intents.push({ type: 'topic', topic })
+        break
+      }
+    }
   }
-  // Slowest queries
-  else if (q.includes('slow') || q.includes('longest') || q.includes('latency') || q.includes('response time')) {
-    filtered.sort((a, b) => b.latency_ms - a.latency_ms)
-    filtered = filtered.slice(0, 10)
-    answer = `Top 10 slowest conversations. The slowest took ${formatLatency(filtered[0]?.latency_ms || 0)}.`
-  }
-  // Language comparison
-  else if (q.includes('hebrew') && q.includes('english') || q.includes('language') || q.includes('compare')) {
-    const he = conversations.filter((c) => c.language === 'he-IL')
-    const en = conversations.filter((c) => c.language === 'en-US')
-    const heAvg = he.length ? Math.round(he.reduce((s, c) => s + c.latency_ms, 0) / he.length) : 0
-    const enAvg = en.length ? Math.round(en.reduce((s, c) => s + c.latency_ms, 0) / en.length) : 0
-    answer = `Hebrew: ${he.length} conversations (avg ${formatLatency(heAvg)}). English: ${en.length} conversations (avg ${formatLatency(enAvg)}).`
-    filtered = conversations
-  }
-  // Topic queries
-  else if (q.includes('topic') || q.includes('popular') || q.includes('discussed')) {
-    const counts: Record<string, number> = {}
-    conversations.forEach((c) => { counts[c.topic] = (counts[c.topic] || 0) + 1 })
-    const sorted = Object.entries(counts).sort(([, a], [, b]) => b - a)
-    answer = `Topic distribution: ${sorted.slice(0, 5).map(([t, n]) => `${t} (${n})`).join(', ')}.`
-    filtered = conversations
-  }
-  // Anomaly queries
-  else if (q.includes('anomal') || q.includes('problem') || q.includes('error') || q.includes('issue')) {
-    filtered = filtered.filter((c) => c.is_anomaly)
-    answer = `Found ${filtered.length} conversations with anomalies.`
-  }
-  // Comprehension failure
-  else if (q.includes('comprehension') || q.includes('understand') || q.includes('fail')) {
-    filtered = filtered.filter((c) => c.is_comprehension_failure || c.is_no_answer)
-    answer = `Found ${filtered.length} conversations where Rambam failed to understand or answer.`
-  }
+
+  // Latency / speed intents
+  const slowWords = ['slow', 'long', 'latency', 'delay', 'wait', 'timeout', 'spike', 'response time', 'took long', 'too long', 'sluggish']
+  if (slowWords.some((w) => lower.includes(w))) intents.push({ type: 'slow' })
+
+  const fastWords = ['fast', 'quick', 'instant', 'responsive', 'snappy', 'fastest']
+  if (fastWords.some((w) => lower.includes(w))) intents.push({ type: 'fast' })
+
+  // Language
+  if ((lower.includes('hebrew') && lower.includes('english')) || lower.includes('compare') || lower.includes('vs') || lower.includes('versus'))
+    intents.push({ type: 'language_compare' })
+  else if (lower.includes('hebrew') || lower.includes('עברית'))
+    intents.push({ type: 'language_filter', lang: 'he-IL' })
+  else if (lower.includes('english') || lower.includes('אנגלית'))
+    intents.push({ type: 'language_filter', lang: 'en-US' })
+
+  // Popular topics
+  if (lower.includes('popular') || lower.includes('common') || lower.includes('most asked') || lower.includes('frequent') || lower.includes('top topic'))
+    intents.push({ type: 'popular_topics' })
+
+  // Anomalies
+  const anomalyWords = ['anomal', 'problem', 'error', 'issue', 'bug', 'broken', 'failed', 'failure', 'wrong']
+  if (anomalyWords.some((w) => lower.includes(w))) intents.push({ type: 'anomalies' })
+
+  // Comprehension
+  if (lower.includes('understand') || lower.includes('comprehen') || lower.includes('confus') || lower.includes('rephrase') || lower.includes('didn\'t get'))
+    intents.push({ type: 'comprehension_fail' })
+
   // Stop commands
-  else if (q.includes('stop') || q.includes('kill') || q.includes('thank you')) {
-    filtered = filtered.filter((c) => c.is_thank_you_interrupt)
-    answer = `Found ${filtered.length} STOP command (kill switch) conversations.`
+  if (lower.includes('stop') || lower.includes('kill') || lower.includes('thank you') || lower.includes('interrupt'))
+    intents.push({ type: 'stop_commands' })
+
+  // Busiest
+  if (lower.includes('busy') || lower.includes('busiest') || lower.includes('most questions') || lower.includes('peak') || lower.includes('volume'))
+    intents.push({ type: 'busiest_days' })
+
+  // Sensitivity
+  if (lower.includes('sensitiv') || lower.includes('critical') || lower.includes('controversial') || lower.includes('political') || lower.includes('danger'))
+    intents.push({ type: 'sensitive' })
+
+  // VIP
+  if (lower.includes('vip') || lower.includes('important') || lower.includes('notable') || lower.includes('special visitor'))
+    intents.push({ type: 'vip' })
+
+  // No answer
+  if (lower.includes('no answer') || lower.includes('empty') || lower.includes('blank') || lower.includes('unanswered') || lower.includes('didn\'t answer'))
+    intents.push({ type: 'no_answer' })
+
+  // Greeting queries
+  if (lower.includes('greeting') || lower.includes('hello') || lower.includes('שלום'))
+    intents.push({ type: 'greetings' })
+
+  // Out of order
+  if (lower.includes('out of order') || lower.includes('out-of-order') || lower.includes('david') || lower.includes('bug'))
+    intents.push({ type: 'out_of_order' })
+
+  // Date filter — look for YYYY-MM-DD patterns or month names
+  const dateMatch = lower.match(/(\d{4}-\d{2}-\d{2})/)
+  if (dateMatch) intents.push({ type: 'date_filter', date: dateMatch[1] })
+
+  // If no intent detected, do text search with the meaningful words
+  if (intents.length === 0) {
+    const stopWords = new Set(['what', 'which', 'where', 'when', 'why', 'how', 'is', 'are', 'was', 'were', 'do', 'does', 'did', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'about', 'show', 'me', 'all', 'find', 'get', 'list', 'display', 'tell', 'give', 'can', 'you', 'conversations', 'questions', 'that', 'have', 'had', 'this', 'those', 'these', 'it', 'they', 'them', 'been', 'be', 'not', 'and', 'or', 'but', 'if', 'any', 'some', 'most', 'trigger', 'cause', 'caused', 'make', 'made'])
+    const terms = words.filter((w) => w.length > 2 && !stopWords.has(w))
+    if (terms.length > 0) {
+      intents.push({ type: 'text_search', terms })
+    }
   }
-  // Busiest days
-  else if (q.includes('busy') || q.includes('busiest') || q.includes('most')) {
-    const dayCounts: Record<string, number> = {}
-    conversations.forEach((c) => { dayCounts[c.date] = (dayCounts[c.date] || 0) + 1 })
-    const sorted = Object.entries(dayCounts).sort(([, a], [, b]) => b - a)
-    answer = `Busiest days: ${sorted.slice(0, 3).map(([d, n]) => `${d} (${n} questions)`).join(', ')}.`
-    filtered = conversations
+
+  return intents
+}
+
+// ──────────────────────────────────────────────
+// QUERY ENGINE: process intents → filter + summarize
+// ──────────────────────────────────────────────
+function queryConversations(question: string, conversations: Conversation[]): QueryResult {
+  const intents = detectIntents(question)
+  let filtered = [...conversations]
+  const answers: string[] = []
+  const stats: string[] = []
+
+  if (intents.length === 0) {
+    return {
+      question,
+      answer: `I couldn't understand that query. Try asking about a topic (like "kashrut" or "theology"), or use the suggested questions below.`,
+      conversations: [],
+      timestamp: Date.now(),
+    }
   }
-  // Specific topic filter
-  else {
-    const topicMatch = Object.keys(TOPIC_COLORS).find((t) => q.includes(t.toLowerCase()))
-    if (topicMatch) {
-      filtered = filtered.filter((c) => c.topic === topicMatch)
-      answer = `Found ${filtered.length} conversations about ${topicMatch}.`
-    } else {
-      // Full-text search fallback
-      filtered = filtered.filter(
-        (c) =>
-          c.question.toLowerCase().includes(q) ||
-          c.answer.toLowerCase().includes(q) ||
-          c.question_en.toLowerCase().includes(q) ||
-          c.answer_en.toLowerCase().includes(q)
-      )
-      answer = filtered.length > 0
-        ? `Found ${filtered.length} conversations matching "${question}".`
-        : `No conversations match "${question}". Try rephrasing or use a suggested question below.`
+
+  for (const intent of intents) {
+    switch (intent.type) {
+      case 'topic': {
+        filtered = filtered.filter((c) => c.topic === intent.topic)
+        const avg = filtered.length ? Math.round(filtered.reduce((s, c) => s + c.latency_ms, 0) / filtered.length) : 0
+        const anomCount = filtered.filter((c) => c.is_anomaly).length
+        answers.push(`**${intent.topic}**: ${filtered.length} conversations`)
+        stats.push(`Avg response: ${formatLatency(avg)}`)
+        if (anomCount > 0) stats.push(`${anomCount} with problems`)
+        const langs = filtered.reduce((acc, c) => { acc[c.language] = (acc[c.language] || 0) + 1; return acc }, {} as Record<string, number>)
+        const langStr = Object.entries(langs).map(([l, n]) => `${LANG_FLAGS[l] || '❓'} ${n}`).join(', ')
+        stats.push(`Languages: ${langStr}`)
+        break
+      }
+
+      case 'slow': {
+        filtered.sort((a, b) => b.latency_ms - a.latency_ms)
+        const slow3s = filtered.filter((c) => c.latency_ms > 3000)
+        const slow2s = filtered.filter((c) => c.latency_ms > 2000 && c.latency_ms <= 3000)
+        answers.push(`**Slow responses**: ${slow3s.length} over 3s, ${slow2s.length} between 2-3s`)
+        filtered = filtered.filter((c) => c.latency_ms > 0).slice(0, 15)
+        if (filtered.length > 0) {
+          const topicCounts: Record<string, number> = {}
+          filtered.forEach((c) => { topicCounts[c.topic] = (topicCounts[c.topic] || 0) + 1 })
+          const topTopics = Object.entries(topicCounts).sort(([, a], [, b]) => b - a).slice(0, 3)
+          stats.push(`Slowest: ${formatLatency(filtered[0].latency_ms)}`)
+          stats.push(`Topics causing delays: ${topTopics.map(([t, n]) => `${t} (${n})`).join(', ')}`)
+        }
+        break
+      }
+
+      case 'fast': {
+        filtered = filtered.filter((c) => c.latency_ms > 0 && c.latency_ms <= 2000)
+        filtered.sort((a, b) => a.latency_ms - b.latency_ms)
+        answers.push(`**Fast responses**: ${filtered.length} under 2s`)
+        if (filtered.length > 0) stats.push(`Fastest: ${formatLatency(filtered[0].latency_ms)}`)
+        filtered = filtered.slice(0, 15)
+        break
+      }
+
+      case 'language_compare': {
+        const he = conversations.filter((c) => c.language === 'he-IL')
+        const en = conversations.filter((c) => c.language === 'en-US')
+        const unk = conversations.filter((c) => c.language === 'unknown')
+        const heAvg = he.length ? Math.round(he.reduce((s, c) => s + c.latency_ms, 0) / he.length) : 0
+        const enAvg = en.length ? Math.round(en.reduce((s, c) => s + c.latency_ms, 0) / en.length) : 0
+        const heAnom = he.filter((c) => c.is_anomaly).length
+        const enAnom = en.filter((c) => c.is_anomaly).length
+        answers.push(`**Language comparison** across ${conversations.length} conversations`)
+        stats.push(`🇮🇱 Hebrew: ${he.length} conversations, avg ${formatLatency(heAvg)}, ${heAnom} problems`)
+        stats.push(`🇺🇸 English: ${en.length} conversations, avg ${formatLatency(enAvg)}, ${enAnom} problems`)
+        if (unk.length > 0) stats.push(`❓ Unknown: ${unk.length} (likely Russian/Arabic)`)
+        stats.push(heAvg < enAvg ? `Hebrew is ${formatLatency(enAvg - heAvg)} faster on average` : `English is ${formatLatency(heAvg - enAvg)} faster on average`)
+        break
+      }
+
+      case 'language_filter': {
+        filtered = filtered.filter((c) => c.language === intent.lang)
+        const label = intent.lang === 'he-IL' ? 'Hebrew' : intent.lang === 'en-US' ? 'English' : 'Unknown'
+        answers.push(`**${label} conversations**: ${filtered.length}`)
+        break
+      }
+
+      case 'popular_topics': {
+        const counts: Record<string, number> = {}
+        conversations.forEach((c) => { counts[c.topic] = (counts[c.topic] || 0) + 1 })
+        const sorted = Object.entries(counts).sort(([, a], [, b]) => b - a)
+        answers.push(`**Topic ranking** (${Object.keys(counts).length} topics across ${conversations.length} conversations)`)
+        sorted.forEach(([topic, count], i) => {
+          const pct = ((count / conversations.length) * 100).toFixed(0)
+          stats.push(`${i + 1}. ${topic}: ${count} (${pct}%)`)
+        })
+        break
+      }
+
+      case 'anomalies': {
+        filtered = filtered.filter((c) => c.is_anomaly)
+        answers.push(`**Problems found**: ${filtered.length} of ${conversations.length} conversations`)
+        const typeCounts: Record<string, number> = {}
+        filtered.forEach((c) => c.anomalies.forEach((a) => { typeCounts[a] = (typeCounts[a] || 0) + 1 }))
+        const sorted = Object.entries(typeCounts).sort(([, a], [, b]) => b - a)
+        sorted.forEach(([type, count]) => stats.push(`${type}: ${count}`))
+        break
+      }
+
+      case 'comprehension_fail': {
+        filtered = filtered.filter((c) => c.is_comprehension_failure || c.is_no_answer)
+        answers.push(`**Comprehension failures**: ${filtered.length} conversations where Rambam couldn't understand or answer`)
+        const langs = filtered.reduce((acc, c) => { acc[c.language] = (acc[c.language] || 0) + 1; return acc }, {} as Record<string, number>)
+        Object.entries(langs).forEach(([l, n]) => stats.push(`${LANG_FLAGS[l] || '❓'} ${l}: ${n}`))
+        break
+      }
+
+      case 'stop_commands': {
+        filtered = filtered.filter((c) => c.is_thank_you_interrupt)
+        answers.push(`**STOP commands**: ${filtered.length} kill switch activations`)
+        const byDay: Record<string, number> = {}
+        filtered.forEach((c) => { byDay[c.date] = (byDay[c.date] || 0) + 1 })
+        const sorted = Object.entries(byDay).sort(([, a], [, b]) => b - a)
+        stats.push(`Days with most stops: ${sorted.slice(0, 3).map(([d, n]) => `${d} (${n})`).join(', ')}`)
+        break
+      }
+
+      case 'busiest_days': {
+        const dayCounts: Record<string, number> = {}
+        conversations.forEach((c) => { dayCounts[c.date] = (dayCounts[c.date] || 0) + 1 })
+        const sorted = Object.entries(dayCounts).sort(([, a], [, b]) => b - a)
+        answers.push(`**Daily activity** across ${Object.keys(dayCounts).length} days`)
+        sorted.forEach(([date, count]) => stats.push(`${date}: ${count} questions`))
+        break
+      }
+
+      case 'sensitive': {
+        filtered = filtered.filter((c) => c.sensitivity === 'high' || c.sensitivity === 'critical')
+        answers.push(`**Sensitive conversations**: ${filtered.length}`)
+        const critCount = filtered.filter((c) => c.sensitivity === 'critical').length
+        const highCount = filtered.filter((c) => c.sensitivity === 'high').length
+        stats.push(`Critical: ${critCount}, High: ${highCount}`)
+        const topicCounts: Record<string, number> = {}
+        filtered.forEach((c) => { topicCounts[c.topic] = (topicCounts[c.topic] || 0) + 1 })
+        const sorted = Object.entries(topicCounts).sort(([, a], [, b]) => b - a)
+        stats.push(`Topics: ${sorted.map(([t, n]) => `${t} (${n})`).join(', ')}`)
+        break
+      }
+
+      case 'vip': {
+        filtered = filtered.filter((c) => c.vip)
+        answers.push(filtered.length > 0
+          ? `**VIP visitors**: ${filtered.length} conversations`
+          : `**No VIP visitors** detected in the current dataset.`)
+        break
+      }
+
+      case 'no_answer': {
+        filtered = filtered.filter((c) => c.is_no_answer)
+        answers.push(`**Unanswered questions**: ${filtered.length}`)
+        break
+      }
+
+      case 'greetings': {
+        filtered = filtered.filter((c) => c.is_greeting)
+        answers.push(`**Greetings**: ${filtered.length} hello/goodbye conversations`)
+        break
+      }
+
+      case 'out_of_order': {
+        filtered = filtered.filter((c) => c.is_out_of_order)
+        answers.push(`**Out-of-order events**: ${filtered.length} (David/Starcloud bug — Rambam receives answer but doesn't speak it)`)
+        break
+      }
+
+      case 'date_filter': {
+        filtered = filtered.filter((c) => c.date === intent.date)
+        answers.push(`**${intent.date}**: ${filtered.length} conversations`)
+        break
+      }
+
+      case 'text_search': {
+        const matchingSets = intent.terms.map((term) =>
+          filtered.filter((c) =>
+            c.question.toLowerCase().includes(term) ||
+            c.answer.toLowerCase().includes(term) ||
+            (c.question_en && c.question_en.toLowerCase().includes(term)) ||
+            (c.answer_en && c.answer_en.toLowerCase().includes(term)) ||
+            c.topic.toLowerCase().includes(term) ||
+            (c.opening_text && c.opening_text.toLowerCase().includes(term))
+          )
+        )
+        // Union of all matches
+        const matchIds = new Set(matchingSets.flat().map((c) => c.id))
+        filtered = filtered.filter((c) => matchIds.has(c.id))
+        answers.push(filtered.length > 0
+          ? `**Text search** for "${intent.terms.join(', ')}": ${filtered.length} matches`
+          : `No matches for "${intent.terms.join(', ')}". Try different words or a topic name.`)
+        break
+      }
     }
   }
 
   return {
     question,
-    answer,
+    answer: answers.join('. '),
+    stats: stats.length > 0 ? stats : undefined,
     conversations: filtered.slice(0, 20),
     timestamp: Date.now(),
   }
 }
 
+// ──────────────────────────────────────────────
+// RESULT CARD — compact conversation display
+// ──────────────────────────────────────────────
 function ResultCard({ conversation: c }: { conversation: Conversation }) {
   const [expanded, setExpanded] = useState(false)
   const flag = LANG_FLAGS[c.language] || '❓'
@@ -178,6 +421,9 @@ function ResultCard({ conversation: c }: { conversation: Conversation }) {
   )
 }
 
+// ──────────────────────────────────────────────
+// MAIN COMPONENT
+// ──────────────────────────────────────────────
 export function AskTheData({ conversations }: AskTheDataProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<QueryResult[]>([])
@@ -188,13 +434,12 @@ export function AskTheData({ conversations }: AskTheDataProps) {
     if (!question.trim()) return
     setIsThinking(true)
 
-    // Simulate brief processing delay for UX (real Kuzu/OpenAI would be async)
     setTimeout(() => {
       const result = queryConversations(question, conversations)
       setResults((prev) => [result, ...prev])
       setQuery('')
       setIsThinking(false)
-    }, 300)
+    }, 200)
   }, [conversations])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -206,14 +451,14 @@ export function AskTheData({ conversations }: AskTheDataProps) {
 
   return (
     <div className="space-y-5">
-      {/* Oracle header */}
+      {/* Header */}
       <div className="text-center pb-2">
         <p className="text-parchment-dim text-sm">
-          Ask questions about {conversations.length} visitor conversations
+          Ask about {conversations.length} visitor conversations — topics, speed, problems, patterns
         </p>
       </div>
 
-      {/* Suggested questions — gilded chips */}
+      {/* Suggested questions */}
       <div className="flex flex-wrap gap-2 justify-center">
         {SUGGESTED_QUESTIONS.map((sq) => (
           <button
@@ -226,7 +471,7 @@ export function AskTheData({ conversations }: AskTheDataProps) {
         ))}
       </div>
 
-      {/* Query input — scribal desk aesthetic */}
+      {/* Input */}
       <div className="relative">
         <div className="flex items-center bg-card border border-border rounded-lg overflow-hidden focus-within:border-gold/40 transition-colors">
           <Sparkles size={18} className="text-gold/40 ml-4 flex-shrink-0" />
@@ -236,7 +481,7 @@ export function AskTheData({ conversations }: AskTheDataProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask the data anything..."
+            placeholder="Try: halacha, slow responses, kashrut, Hebrew questions..."
             className="flex-1 bg-transparent px-3 py-3 text-base text-parchment placeholder:text-text-dim/50 focus:outline-none"
             disabled={isThinking}
           />
@@ -254,7 +499,7 @@ export function AskTheData({ conversations }: AskTheDataProps) {
       <div className="space-y-4">
         {results.map((result) => (
           <div key={result.timestamp} className="space-y-3">
-            {/* Question echo */}
+            {/* Question */}
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-gold text-xs font-bold">Q</span>
@@ -262,11 +507,26 @@ export function AskTheData({ conversations }: AskTheDataProps) {
               <p className="text-parchment text-sm font-medium">{result.question}</p>
             </div>
 
-            {/* Answer */}
+            {/* Answer + Stats */}
             <div className="ml-9 space-y-3">
-              <p className="text-parchment-dim text-sm leading-relaxed">{result.answer}</p>
+              <p className="text-parchment text-sm leading-relaxed" dangerouslySetInnerHTML={{
+                __html: result.answer
+                  .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gold">$1</strong>')
+              }} />
 
-              {/* Result cards */}
+              {/* Stats bullets */}
+              {result.stats && result.stats.length > 0 && (
+                <div className="bg-background/50 rounded-lg px-4 py-3 space-y-1">
+                  {result.stats.map((stat, i) => (
+                    <div key={i} className="text-sm text-parchment-dim flex items-start gap-2">
+                      <span className="text-gold/40 mt-0.5">›</span>
+                      <span>{stat}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Conversation results */}
               {result.conversations.length > 0 && (
                 <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
                   {result.conversations.map((c) => (
@@ -274,21 +534,8 @@ export function AskTheData({ conversations }: AskTheDataProps) {
                   ))}
                 </div>
               )}
-
-              {/* Cypher query (future: shown when Kuzu is active) */}
-              {result.cypherQuery && (
-                <details className="text-xs">
-                  <summary className="text-text-dim/50 cursor-pointer hover:text-text-dim transition-colors">
-                    Show query
-                  </summary>
-                  <pre className="mt-1 p-2 bg-background rounded text-gold/60 font-mono overflow-x-auto">
-                    {result.cypherQuery}
-                  </pre>
-                </details>
-              )}
             </div>
 
-            {/* Divider */}
             <div className="h-px bg-border/30 ml-9" />
           </div>
         ))}
@@ -299,10 +546,10 @@ export function AskTheData({ conversations }: AskTheDataProps) {
         <div className="text-center py-8">
           <div className="text-gold/20 text-5xl mb-3">✦</div>
           <p className="text-parchment-dim text-sm">
-            Choose a suggested question above, or type your own.
+            Choose a suggested question, or type a topic name, keyword, or question.
           </p>
-          <p className="text-text-dim/50 text-xs mt-1">
-            Results show matching visitor conversations with full details.
+          <p className="text-text-dim/50 text-xs mt-2">
+            Examples: "halacha" &middot; "slow responses" &middot; "Hebrew kashrut" &middot; "what caused problems?"
           </p>
         </div>
       )}
