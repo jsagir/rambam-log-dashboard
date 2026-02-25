@@ -78,11 +78,20 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
     const health = anomalyRate < 0.1 ? 'Healthy' : anomalyRate < 0.25 ? 'Issues' : 'Critical'
     const healthEmoji = anomalyRate < 0.1 ? '🟢' : anomalyRate < 0.25 ? '🟡' : '🔴'
 
-    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts }
+    // Two-latency model (Daniel's request)
+    const openingLats = convos.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!)
+    const avgOpening = openingLats.length > 0 ? Math.round(openingLats.reduce((a, b) => a + b, 0) / openingLats.length) : 0
+    const thinkTimes = convos.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
+    const avgThink = thinkTimes.length > 0 ? Math.round(thinkTimes.reduce((a, b) => a + b, 0) / thinkTimes.length) : 0
+    const seamlessCount = thinkTimes.filter(t => t < 3000).length
+    const seamlessRate = thinkTimes.length > 0 ? Math.round(seamlessCount / thinkTimes.length * 100) : 0
+
+    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts, avgOpening, avgThink, seamlessRate }
   }, [data, selectedDate])
 
   const dailySpark = data.daily_stats.map((d) => d.total_conversations)
-  const latencySpark = data.daily_stats.map((d) => d.avg_latency_ms)
+  const openingSpark = data.daily_stats.map((d) => d.avg_opening_latency_ms || 0)
+  const thinkSpark = data.daily_stats.map((d) => d.avg_ai_think_ms || 0)
 
   return (
     <section className="mb-8">
@@ -96,13 +105,22 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           tooltip="This shows how many questions visitors asked Rambam. The small line chart shows the daily trend — peaks often mean group tours came through."
         />
         <StatCard
-          label="Response Time"
-          value={formatLatency(stats.avgLatency)}
+          label="Opening Latency"
+          value={formatLatency(stats.avgOpening)}
           icon={<Clock size={18} />}
-          sparkData={latencySpark}
-          sparkColor={stats.avgLatency > 3000 ? '#C75B3A' : '#4A8F6F'}
-          subtitle={`Typical: ${formatLatency(stats.medianLatency)} · Slowest 5%: ${formatLatency(stats.p95Latency)}`}
-          tooltip="This tells you how fast Rambam answers. Under 2 seconds is great, 2-3 seconds is okay, over 3 seconds means visitors are waiting too long. 'Typical' is the middle value; 'Slowest 5%' shows the worst experience."
+          sparkData={openingSpark}
+          sparkColor={stats.avgOpening > 3000 ? '#C75B3A' : stats.avgOpening > 2000 ? '#D4A843' : '#4A8F6F'}
+          subtitle="Silence before visitor hears anything"
+          tooltip="This is how long the visitor waits in SILENCE before Rambam starts speaking. It's the gap between the visitor finishing their question and the pre-recorded opening sentence playing. Under 2 seconds is ideal. Over 3 seconds feels uncomfortably long."
+        />
+        <StatCard
+          label="AI Response Time"
+          value={formatLatency(stats.avgThink)}
+          icon={<Clock size={18} />}
+          sparkData={thinkSpark}
+          sparkColor={stats.avgThink > 3000 ? '#C75B3A' : stats.avgThink > 2000 ? '#D4A843' : '#4A8F6F'}
+          subtitle={`${stats.seamlessRate}% seamless (hidden behind opening)`}
+          tooltip="This is how long the AI takes to generate Rambam's answer. This time is HIDDEN — a pre-recorded opening sentence plays while the AI thinks. If AI finishes before the opening ends (~3s), the visitor hears zero delay (seamless). The 'seamless' percentage shows how often this works."
         />
         <StatCard
           label="System Status"

@@ -132,6 +132,36 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
     })).filter((d) => d.count > 0)
   }, [conversations])
 
+  // Two-latency model stats (Daniel's request)
+  const twoLatencyStats = useMemo(() => {
+    const openingLats = conversations.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!)
+    const thinkTimes = conversations.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
+
+    if (openingLats.length === 0 && thinkTimes.length === 0) return null
+
+    const sortedOpening = [...openingLats].sort((a, b) => a - b)
+    const sortedThink = [...thinkTimes].sort((a, b) => a - b)
+    const openingAvg = sortedOpening.length > 0 ? Math.round(sortedOpening.reduce((a, b) => a + b, 0) / sortedOpening.length) : 0
+    const thinkAvg = sortedThink.length > 0 ? Math.round(sortedThink.reduce((a, b) => a + b, 0) / sortedThink.length) : 0
+    const openingP95 = sortedOpening.length > 0 ? sortedOpening[Math.floor(sortedOpening.length * 0.95)] : 0
+    const thinkP95 = sortedThink.length > 0 ? sortedThink[Math.floor(sortedThink.length * 0.95)] : 0
+    const openingMax = sortedOpening.length > 0 ? sortedOpening[sortedOpening.length - 1] : 0
+    const thinkMax = sortedThink.length > 0 ? sortedThink[sortedThink.length - 1] : 0
+    const seamlessCount = thinkTimes.filter(t => t < 3000).length
+    const seamlessRate = thinkTimes.length > 0 ? Math.round(seamlessCount / thinkTimes.length * 100) : 0
+
+    return { openingAvg, thinkAvg, openingP95, thinkP95, openingMax, thinkMax, seamlessRate, openingCount: sortedOpening.length, thinkCount: sortedThink.length }
+  }, [conversations])
+
+  // Daily two-latency trend
+  const dailyTwoLatency = useMemo(() => {
+    return dailyStats.map(d => ({
+      date: d.date.slice(5),
+      opening: d.avg_opening_latency_ms || 0,
+      think: d.avg_ai_think_ms || 0,
+    }))
+  }, [dailyStats])
+
   // Slowest conversations
   const slowest = useMemo(() => {
     return [...conversations]
@@ -158,6 +188,118 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
   return (
     <section className="mb-8">
       <h2 className="font-serif text-2xl text-gold mb-6" title="This section shows how fast Rambam answers visitors. You can see average speed, which topics are slowest, what time of day is worst, and the individual slowest responses.">Response Speed</h2>
+
+      {/* Two-Latency Model — Daniel's request */}
+      {twoLatencyStats && (
+        <div className="bg-card border border-gold/20 rounded-lg p-5 mb-6">
+          <h3 className="text-base font-semibold text-gold mb-1" title="The Rambam system has a latency-hiding trick: a pre-recorded opening sentence plays WHILE the AI thinks. So there are two separate waits the visitor may experience.">
+            Two-Latency Model
+          </h3>
+          <p className="text-xs text-parchment-dim mb-4">
+            Rambam plays a pre-recorded opening while the AI thinks. If the AI finishes before the opening ends, the visitor hears zero delay.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Opening Latency card */}
+            <div className="bg-background rounded-lg p-4 border border-border">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#6366F1' }} />
+                <span className="text-sm font-semibold text-parchment">Opening Sentence Latency</span>
+              </div>
+              <p className="text-[11px] text-parchment-dim mb-3">
+                Silence the visitor feels before hearing anything. Starts after they finish speaking.
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Average</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingAvg) }}>
+                    {formatLatency(twoLatencyStats.openingAvg)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">P95</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingP95) }}>
+                    {formatLatency(twoLatencyStats.openingP95)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingMax) }}>
+                    {formatLatency(twoLatencyStats.openingMax)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Think Time card */}
+            <div className="bg-background rounded-lg p-4 border border-border">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#C8A961' }} />
+                <span className="text-sm font-semibold text-parchment">AI Response Time</span>
+              </div>
+              <p className="text-[11px] text-parchment-dim mb-3">
+                How long the AI takes to generate the answer. Hidden behind the opening sentence.
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Average</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkAvg) }}>
+                    {formatLatency(twoLatencyStats.thinkAvg)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">P95</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkP95) }}>
+                    {formatLatency(twoLatencyStats.thinkP95)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkMax) }}>
+                    {formatLatency(twoLatencyStats.thinkMax)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Seamless rate bar */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between text-xs text-parchment-dim mb-1">
+              <span>Seamless Response Rate (AI finishes before opening ends)</span>
+              <span className="font-bold" style={{ color: twoLatencyStats.seamlessRate >= 90 ? '#4A8F6F' : twoLatencyStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A' }}>
+                {twoLatencyStats.seamlessRate}%
+              </span>
+            </div>
+            <div className="h-3 rounded bg-background overflow-hidden">
+              <div
+                className="h-full rounded transition-all"
+                style={{
+                  width: `${twoLatencyStats.seamlessRate}%`,
+                  backgroundColor: twoLatencyStats.seamlessRate >= 90 ? '#4A8F6F' : twoLatencyStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Daily two-latency trend */}
+          {dailyTwoLatency.length > 1 && (
+            <div>
+              <div className="text-xs text-parchment-dim mb-2">Daily Trend: Opening vs AI Response</div>
+              <ResponsiveContainer width="100%" height={140}>
+                <LineChart data={dailyTwoLatency}>
+                  <XAxis dataKey="date" stroke="#D0C8B8" fontSize={11} />
+                  <YAxis stroke="#D0C8B8" fontSize={11} />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="2 4" />
+                  <Line type="monotone" dataKey="opening" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} name="Opening Latency" />
+                  <Line type="monotone" dataKey="think" stroke="#C8A961" strokeWidth={2} dot={{ r: 3 }} name="AI Think Time" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Summary stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
@@ -338,9 +480,10 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                 <th className="pb-2 pr-3">#</th>
                 <th className="pb-2 pr-3">Date</th>
                 <th className="pb-2 pr-3">Time</th>
-                <th className="pb-2 pr-3">Wait Time</th>
+                <th className="pb-2 pr-3" title="Silence before visitor hears opening sentence" style={{ color: '#6366F1' }}>Opening</th>
+                <th className="pb-2 pr-3" title="AI generation time (hidden behind opening)" style={{ color: '#C8A961' }}>AI Think</th>
+                <th className="pb-2 pr-3" title="Total end-to-end response time">Total</th>
                 <th className="pb-2 pr-3">Topic</th>
-                <th className="pb-2 pr-3">Lang</th>
                 <th className="pb-2">Question</th>
               </tr>
             </thead>
@@ -350,6 +493,12 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                   <td className="py-2 pr-3 text-parchment-dim">{i + 1}</td>
                   <td className="py-2 pr-3 font-mono text-parchment-dim">{c.date}</td>
                   <td className="py-2 pr-3 font-mono text-parchment-dim">{extractTime(c.time)}</td>
+                  <td className="py-2 pr-3 font-mono text-xs" style={{ color: '#6366F1' }}>
+                    {c.opening_latency_ms ? formatLatency(c.opening_latency_ms) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 font-mono text-xs" style={{ color: '#C8A961' }}>
+                    {c.ai_think_ms ? formatLatency(c.ai_think_ms) : '—'}
+                  </td>
                   <td className="py-2 pr-3 font-mono font-bold" style={{ color: getLatencyColor(c.latency_ms) }}>
                     {formatLatency(c.latency_ms)}
                   </td>
@@ -358,8 +507,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                       {c.topic}
                     </span>
                   </td>
-                  <td className="py-2 pr-3 text-parchment-dim">{c.language}</td>
-                  <td className="py-2 text-parchment-dim truncate max-w-[300px]" dir="auto">{c.question}</td>
+                  <td className="py-2 text-parchment-dim truncate max-w-[250px]" dir="auto">{c.question}</td>
                 </tr>
               ))}
             </tbody>
