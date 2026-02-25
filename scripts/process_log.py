@@ -34,8 +34,25 @@ def translate_he_to_en(text):
 
 ISRAEL_TZ = ZoneInfo('Asia/Jerusalem')
 
-# Estimated opening audio duration in ms (average pre-recorded clip ~3s)
-ESTIMATED_OPENING_DURATION_MS = 3000
+# Load actual opening audio durations from measured WAV files
+# Falls back to 3000ms estimate if mapping not found
+_AUDIO_DURATIONS_PATH = Path(__file__).parent.parent / 'public' / 'data' / 'audio_durations.json'
+AUDIO_DURATIONS = {}  # {lang_prefix: {audio_id_str: duration_ms}}
+FALLBACK_OPENING_DURATION_MS = 3000
+try:
+    with open(_AUDIO_DURATIONS_PATH) as f:
+        AUDIO_DURATIONS = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
+
+def get_opening_duration_ms(audio_id: str, language: str) -> int:
+    """Get actual opening audio duration for a given audio_id and language."""
+    if not audio_id or not AUDIO_DURATIONS:
+        return FALLBACK_OPENING_DURATION_MS
+    lang_key = 'he' if language.startswith('he') else 'en'
+    lang_durations = AUDIO_DURATIONS.get(lang_key, {})
+    return lang_durations.get(str(audio_id), FALLBACK_OPENING_DURATION_MS)
 
 # Topic classification keywords (Hebrew + English)
 TOPIC_RULES = {
@@ -395,8 +412,9 @@ def group_interactions(entries):
             elif opening_latency_ms > 3000:
                 anomalies.append('OPENING_LATENCY_WARN')
 
-        # Think time overflow: AI took longer than opening audio covers
-        if ai_think_ms is not None and ai_think_ms > ESTIMATED_OPENING_DURATION_MS:
+        # Think time overflow: AI took longer than actual opening audio duration
+        actual_opening_duration = get_opening_duration_ms(audio_id, lang)
+        if ai_think_ms is not None and ai_think_ms > actual_opening_duration:
             anomalies.append('THINK_OVERFLOW')
 
         # Check for non-200 codes
@@ -435,10 +453,12 @@ def group_interactions(entries):
             'topic': topic,
             'opening_text': opening_text,
             'audio_id': audio_id,
+            'opening_audio_duration_ms': actual_opening_duration,
             'latency_ms': latency_ms,
             'opening_latency_ms': opening_latency_ms,
             'ai_think_ms': ai_think_ms,
             'stream_duration_ms': stream_duration_ms,
+            'net_gap_ms': (ai_think_ms - actual_opening_duration) if ai_think_ms is not None else None,
             'is_out_of_order': is_out_of_order,
             'answer_length': len(full_answer),
             'chunk_count': len(chunks),
@@ -563,7 +583,10 @@ def compute_daily_summary(interactions, date_str):
         'avg_ai_think_ms': int(sum(think_times) / len(think_times)) if think_times else 0,
         'max_ai_think_ms': max(think_times) if think_times else 0,
         'avg_stream_duration_ms': int(sum(stream_durs) / len(stream_durs)) if stream_durs else 0,
-        'seamless_rate': round(sum(1 for t in think_times if t < ESTIMATED_OPENING_DURATION_MS) / len(think_times) * 100, 1) if think_times else 0,
+        'seamless_rate': round(
+            sum(1 for ix in interactions if ix.get('ai_think_ms') is not None and ix.get('opening_audio_duration_ms') and ix['ai_think_ms'] < ix['opening_audio_duration_ms'])
+            / len(think_times) * 100, 1
+        ) if think_times else 0,
         'first_interaction': first_time,
         'last_interaction': last_time,
     }

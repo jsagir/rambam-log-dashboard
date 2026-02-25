@@ -147,10 +147,20 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
     const thinkP95 = sortedThink.length > 0 ? sortedThink[Math.floor(sortedThink.length * 0.95)] : 0
     const openingMax = sortedOpening.length > 0 ? sortedOpening[sortedOpening.length - 1] : 0
     const thinkMax = sortedThink.length > 0 ? sortedThink[sortedThink.length - 1] : 0
-    const seamlessCount = thinkTimes.filter(t => t < 3000).length
+    // Use actual per-interaction audio durations for seamless calculation
+    const seamlessCount = conversations.filter(c =>
+      c.ai_think_ms != null && c.opening_audio_duration_ms != null &&
+      c.ai_think_ms < c.opening_audio_duration_ms
+    ).length
     const seamlessRate = thinkTimes.length > 0 ? Math.round(seamlessCount / thinkTimes.length * 100) : 0
 
-    return { openingAvg, thinkAvg, openingP95, thinkP95, openingMax, thinkMax, seamlessRate, openingCount: sortedOpening.length, thinkCount: sortedThink.length }
+    // Net gap stats (negative = buffer, positive = second silence)
+    const netGaps = conversations.filter(c => c.net_gap_ms != null).map(c => c.net_gap_ms!)
+    const gappedCount = netGaps.filter(g => g > 0).length
+    const avgGap = netGaps.length > 0 ? Math.round(netGaps.reduce((a, b) => a + b, 0) / netGaps.length) : 0
+    const worstGap = netGaps.length > 0 ? Math.max(...netGaps) : 0
+
+    return { openingAvg, thinkAvg, openingP95, thinkP95, openingMax, thinkMax, seamlessRate, openingCount: sortedOpening.length, thinkCount: sortedThink.length, gappedCount, avgGap, worstGap, totalWithGapData: netGaps.length }
   }, [conversations])
 
   // Daily two-latency trend
@@ -192,22 +202,22 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
       {/* Two-Latency Model — Daniel's request */}
       {twoLatencyStats && (
         <div className="bg-card border border-gold/20 rounded-lg p-5 mb-6">
-          <h3 className="text-base font-semibold text-gold mb-1" title="The Rambam system has a latency-hiding trick: a pre-recorded opening sentence plays WHILE the AI thinks. So there are two separate waits the visitor may experience.">
-            Two-Latency Model
+          <h3 className="text-base font-semibold text-gold mb-1" title="Two parallel pipelines race from T0: one selects and plays the opening, the other generates the AI answer. The opening audio hides remaining LLM time.">
+            Latency Timeline (Parallel Pipelines)
           </h3>
           <p className="text-xs text-parchment-dim mb-4">
-            Rambam plays a pre-recorded opening while the AI thinks. If the AI finishes before the opening ends, the visitor hears zero delay.
+            At T0, two pipelines race: <span style={{ color: '#6366F1' }}>opening selection</span> (~1.9s) and <span style={{ color: '#C8A961' }}>LLM generation</span> (~3.5s). Opening audio (~3s) covers remaining LLM time. Answer plays from buffer when opening ends.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {/* Opening Latency card */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Silence Gap card */}
             <div className="bg-background rounded-lg p-4 border border-border">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#6366F1' }} />
-                <span className="text-sm font-semibold text-parchment">Opening Sentence Latency</span>
+                <span className="text-sm font-semibold text-parchment">Silence Gap (T1-T0)</span>
               </div>
               <p className="text-[11px] text-parchment-dim mb-3">
-                Silence the visitor feels before hearing anything. Starts after they finish speaking.
+                Opening pipeline time: classify question → select opening → fire audio. The silence visitor FEELS before hearing anything.
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
@@ -231,14 +241,14 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
               </div>
             </div>
 
-            {/* AI Think Time card */}
+            {/* AI Behind Opening card */}
             <div className="bg-background rounded-lg p-4 border border-border">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#C8A961' }} />
-                <span className="text-sm font-semibold text-parchment">AI Response Time</span>
+                <span className="text-sm font-semibold text-parchment">AI Behind Opening (T2-T1)</span>
               </div>
               <p className="text-[11px] text-parchment-dim mb-3">
-                How long the AI takes to generate the answer. Hidden behind the opening sentence.
+                Remaining LLM time after opening fires. Opening audio (~3s) plays over this. If AI finishes before audio ends → seamless.
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
@@ -261,12 +271,43 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                 </div>
               </div>
             </div>
+
+            {/* AI Ready (T2-T0) card */}
+            <div className="bg-background rounded-lg p-4 border border-border">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#E0D5C0' }} />
+                <span className="text-sm font-semibold text-parchment">AI Ready (T2-T0)</span>
+              </div>
+              <p className="text-[11px] text-parchment-dim mb-3">
+                Total LLM pipeline time from question end. Answer buffered and waiting. Visitor hears it after opening audio finishes.
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Average</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingAvg + twoLatencyStats.thinkAvg) }}>
+                    {formatLatency(twoLatencyStats.openingAvg + twoLatencyStats.thinkAvg)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">P95</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingP95 + twoLatencyStats.thinkP95) }}>
+                    {formatLatency(twoLatencyStats.openingP95 + twoLatencyStats.thinkP95)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingMax + twoLatencyStats.thinkMax) }}>
+                    {formatLatency(twoLatencyStats.openingMax + twoLatencyStats.thinkMax)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Seamless rate bar */}
+          {/* Seamless rate bar + gap details */}
           <div className="mb-4">
             <div className="flex items-center justify-between text-xs text-parchment-dim mb-1">
-              <span>Seamless Response Rate (AI finishes before opening ends)</span>
+              <span>Seamless rate (AI ready before opening audio ends — per actual audio_id duration)</span>
               <span className="font-bold" style={{ color: twoLatencyStats.seamlessRate >= 90 ? '#4A8F6F' : twoLatencyStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A' }}>
                 {twoLatencyStats.seamlessRate}%
               </span>
@@ -280,19 +321,24 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                 }}
               />
             </div>
+            {twoLatencyStats.gappedCount > 0 && (
+              <div className="mt-2 text-xs text-parchment-dim">
+                <span style={{ color: '#C75B3A' }}>{twoLatencyStats.gappedCount}</span> conversations had a second silence gap after opening ended (worst: {formatLatency(twoLatencyStats.worstGap)})
+              </div>
+            )}
           </div>
 
           {/* Daily two-latency trend */}
           {dailyTwoLatency.length > 1 && (
             <div>
-              <div className="text-xs text-parchment-dim mb-2">Daily Trend: Opening vs AI Response</div>
+              <div className="text-xs text-parchment-dim mb-2">Daily Trend: Silence Gap (T1-T0) vs AI Behind Opening (T2-T1)</div>
               <ResponsiveContainer width="100%" height={140}>
                 <LineChart data={dailyTwoLatency}>
                   <XAxis dataKey="date" stroke="#D0C8B8" fontSize={11} />
                   <YAxis stroke="#D0C8B8" fontSize={11} />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="2 4" />
-                  <Line type="monotone" dataKey="opening" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} name="Opening Latency" />
+                  <Line type="monotone" dataKey="opening" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} name="Silence Gap" />
                   <Line type="monotone" dataKey="think" stroke="#C8A961" strokeWidth={2} dot={{ r: 3 }} name="AI Think Time" />
                 </LineChart>
               </ResponsiveContainer>
@@ -480,8 +526,8 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                 <th className="pb-2 pr-3">#</th>
                 <th className="pb-2 pr-3">Date</th>
                 <th className="pb-2 pr-3">Time</th>
-                <th className="pb-2 pr-3" title="Silence before visitor hears opening sentence" style={{ color: '#6366F1' }}>Opening</th>
-                <th className="pb-2 pr-3" title="AI generation time (hidden behind opening)" style={{ color: '#C8A961' }}>AI Think</th>
+                <th className="pb-2 pr-3" title="Silence the visitor feels before hearing anything (STT → opening)" style={{ color: '#6366F1' }}>Silence</th>
+                <th className="pb-2 pr-3" title="LLM generation time after opening fires (hidden behind opening audio)" style={{ color: '#C8A961' }}>AI Think</th>
                 <th className="pb-2 pr-3" title="Total end-to-end response time">Total</th>
                 <th className="pb-2 pr-3">Topic</th>
                 <th className="pb-2">Question</th>

@@ -83,15 +83,23 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
     const avgOpening = openingLats.length > 0 ? Math.round(openingLats.reduce((a, b) => a + b, 0) / openingLats.length) : 0
     const thinkTimes = convos.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
     const avgThink = thinkTimes.length > 0 ? Math.round(thinkTimes.reduce((a, b) => a + b, 0) / thinkTimes.length) : 0
-    const seamlessCount = thinkTimes.filter(t => t < 3000).length
+    // Use actual per-interaction audio durations for seamless calculation
+    const seamlessCount = convos.filter(c =>
+      c.ai_think_ms != null && c.opening_audio_duration_ms != null &&
+      c.ai_think_ms < c.opening_audio_duration_ms
+    ).length
     const seamlessRate = thinkTimes.length > 0 ? Math.round(seamlessCount / thinkTimes.length * 100) : 0
 
-    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts, avgOpening, avgThink, seamlessRate }
+    // Total to answer = opening + think (sequential model)
+    const totalToAnswer = avgOpening + avgThink
+
+    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts, avgOpening, avgThink, seamlessRate, totalToAnswer }
   }, [data, selectedDate])
 
   const dailySpark = data.daily_stats.map((d) => d.total_conversations)
   const openingSpark = data.daily_stats.map((d) => d.avg_opening_latency_ms || 0)
   const thinkSpark = data.daily_stats.map((d) => d.avg_ai_think_ms || 0)
+  const totalSpark = data.daily_stats.map((d) => (d.avg_opening_latency_ms || 0) + (d.avg_ai_think_ms || 0))
 
   return (
     <section className="mb-8">
@@ -105,22 +113,31 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           tooltip="This shows how many questions visitors asked Rambam. The small line chart shows the daily trend — peaks often mean group tours came through."
         />
         <StatCard
-          label="Opening Latency"
+          label="Silence Gap"
           value={formatLatency(stats.avgOpening)}
           icon={<Clock size={18} />}
           sparkData={openingSpark}
           sparkColor={stats.avgOpening > 3000 ? '#C75B3A' : stats.avgOpening > 2000 ? '#D4A843' : '#4A8F6F'}
-          subtitle="Silence before visitor hears anything"
-          tooltip="This is how long the visitor waits in SILENCE before Rambam starts speaking. It's the gap between the visitor finishing their question and the pre-recorded opening sentence playing. Under 2 seconds is ideal. Over 3 seconds feels uncomfortably long."
+          subtitle="Before visitor hears anything"
+          tooltip="The silence the visitor FEELS after finishing their question, before Rambam starts speaking. Both the opening pipeline and LLM start in parallel at this point. Under 2s ideal, over 3s uncomfortable."
         />
         <StatCard
-          label="AI Response Time"
+          label="AI Ready"
+          value={formatLatency(stats.totalToAnswer)}
+          icon={<Clock size={18} />}
+          sparkData={totalSpark}
+          sparkColor={stats.totalToAnswer > 5000 ? '#C75B3A' : stats.totalToAnswer > 3500 ? '#D4A843' : '#4A8F6F'}
+          subtitle="Answer buffered and waiting"
+          tooltip="Total time from question end until the AI answer is ready (T2-T0). Both pipelines run in parallel from T0. The answer arrives at this time and waits in the buffer. Visitor hears it after the opening audio finishes."
+        />
+        <StatCard
+          label="AI Behind Opening"
           value={formatLatency(stats.avgThink)}
           icon={<Clock size={18} />}
           sparkData={thinkSpark}
           sparkColor={stats.avgThink > 3000 ? '#C75B3A' : stats.avgThink > 2000 ? '#D4A843' : '#4A8F6F'}
-          subtitle={`${stats.seamlessRate}% seamless (hidden behind opening)`}
-          tooltip="This is how long the AI takes to generate Rambam's answer. This time is HIDDEN — a pre-recorded opening sentence plays while the AI thinks. If AI finishes before the opening ends (~3s), the visitor hears zero delay (seamless). The 'seamless' percentage shows how often this works."
+          subtitle={`${stats.seamlessRate}% covered by opening audio`}
+          tooltip="Remaining LLM time AFTER the opening fires. The opening audio (~3s) plays over this gap. If the AI finishes before the audio ends, the visitor hears zero second silence. The percentage shows how often this works."
         />
         <StatCard
           label="System Status"

@@ -86,10 +86,12 @@ export interface Conversation {
   topic: string
   opening_text: string
   audio_id: string
+  opening_audio_duration_ms: number | null
   latency_ms: number
   opening_latency_ms: number | null
   ai_think_ms: number | null
   stream_duration_ms: number | null
+  net_gap_ms: number | null
   is_out_of_order: boolean
   answer_length: number
   chunk_count: number

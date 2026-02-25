@@ -50,26 +50,39 @@ The dashboard has two main views, accessible via prominent buttons at the top:
 
 **Future (500+ conversations):** Add Pinecone vector retrieval before GPT to avoid sending all data in context.
 
-## CRITICAL: Two-Latency Model
+## CRITICAL: Parallel Pipeline Latency Model
 
-The Rambam system has a **latency-hiding architecture**. A pre-recorded opening sentence plays WHILE the LLM thinks. This means there are **three separate latencies** per interaction:
+The Rambam system runs **two parallel pipelines** from T0 (STT completion):
 
-| Latency | Formula | What It Measures | Healthy | Critical |
-|---------|---------|------------------|---------|----------|
-| **Opening Latency** | T1-T0 (waiting_audio - STT) | Silence gap visitor FEELS | <2s | >5s |
-| **AI Think Time** | T2-T1 (first_chunk - waiting_audio) | LLM generation, hidden behind opening | <3s | >5s |
-| **Stream Duration** | T3-T2 (last_chunk - first_chunk) | Answer delivery time | varies | >5s |
+```
+T0: STT completes (visitor finishes speaking)
+ ├── Pipeline A: classify → select opening → fire audio     → T1 (avg 1.9s)
+ └── Pipeline B: LLM inference → stream response chunks     → T2 (avg 3.5s from T0)
+```
 
-**The killer metric:** "Seamless Response Rate" = % where ai_think_time < opening_audio_duration (~3s). If the AI finishes thinking before the opening ends, the visitor hears zero delay.
+Both start simultaneously. The opening audio (~3s) plays while the LLM finishes.
+
+| Metric | Formula | Dashboard Label | What It Means | Healthy | Critical |
+|--------|---------|----------------|---------------|---------|----------|
+| **Silence Gap** | T1-T0 | "Silence Gap" | Opening pipeline time. Silence visitor FEELS. | <2s | >5s |
+| **AI Behind Opening** | T2-T1 | "AI Behind Opening" | Remaining LLM time after opening fires. Covered by opening audio. | <3s | >5s |
+| **AI Ready** | T2-T0 | "AI Ready" | Total LLM time. Answer buffered at this point. | <4s | >6s |
+| **Stream Duration** | T3-T2 | — | Answer delivery time (TTS playback) | varies | >5s |
+
+**The killer metric:** "Seamless Rate" = % where T2-T1 < opening_audio_duration (~3s). If the remaining LLM time fits within the opening audio, zero second gap after opening.
+
+**Proof of parallel architecture:** 3 OUT_OF_ORDER cases (1.6% of data) where T2 < T1 — the LLM finished BEFORE the opening even fired. This is impossible in a sequential model.
 
 **Anomaly types from this model:**
-- `OPENING_LATENCY_WARN/CRITICAL` — visitor waited too long before hearing anything
-- `THINK_OVERFLOW` — AI took longer than opening audio covers (second silence gap)
-- `OUT_OF_ORDER` — stream_chunk arrived BEFORE waiting_audio (David/Starcloud bug: Rambam receives answer but doesn't speak it)
+- `OPENING_LATENCY_WARN/CRITICAL` — visitor waited too long in silence (Pipeline A slow)
+- `THINK_OVERFLOW` — remaining LLM time exceeded opening audio duration (second silence gap)
+- `OUT_OF_ORDER` — T2 < T1, stream_chunk before waiting_audio (Starcloud bug: answer ready but not played)
 
-**Precision note:** STT timestamps are second-precision; msg.timestamp is millisecond-precision. Opening latency has ±1s uncertainty.
+**Precision note:** STT timestamps are second-precision; msg.timestamp is millisecond-precision. Silence gap has ±1s uncertainty.
 
-**Fields in data:** `opening_latency_ms`, `ai_think_ms`, `stream_duration_ms`, `is_out_of_order` per conversation. `seamless_response_rate`, `avg_opening_latency_ms`, `avg_ai_think_ms` in KPIs.
+**Pending confirmation from Daniel:** Exact opening audio durations per audio_id would let us compute precise seamless rate and net_latency_ms.
+
+**Fields in data:** `opening_latency_ms` (T1-T0), `ai_think_ms` (T2-T1), `stream_duration_ms` (T3-T2), `is_out_of_order` per conversation. `seamless_response_rate`, `avg_opening_latency_ms`, `avg_ai_think_ms` in KPIs.
 
 ## CRITICAL: STOP Safe Word / Kill Switch
 
