@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ConversationFeed } from './ConversationFeed'
 import { TopicCharts } from './TopicCharts'
+import { AskTheData } from './AskTheData'
 import type { Conversation, DailyStat, TopicTrend, KPI } from '@/types/dashboard'
 
 interface ContentIntelligenceProps {
@@ -11,7 +12,7 @@ interface ContentIntelligenceProps {
   showTranslations: boolean
 }
 
-type Tab = 'feed' | 'charts'
+type Tab = 'feed' | 'charts' | 'ask'
 
 export function ContentIntelligence({
   conversations,
@@ -47,6 +48,17 @@ export function ContentIntelligence({
           >
             Topics & Trends
           </button>
+          <button
+            onClick={() => setActiveTab('ask')}
+            className={`px-5 py-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'ask'
+                ? 'bg-gold/20 text-gold'
+                : 'text-text-dim hover:text-parchment'
+            }`}
+          >
+            <span className="text-xs">✦</span>
+            Ask the Data
+          </button>
         </div>
       </div>
 
@@ -55,12 +67,14 @@ export function ContentIntelligence({
           conversations={conversations}
           showTranslations={showTranslations}
         />
-      ) : (
+      ) : activeTab === 'charts' ? (
         <TopicCharts
           dailyStats={dailyStats}
           topicTrend={topicTrend}
           kpi={kpi}
         />
+      ) : (
+        <AskTheData conversations={conversations} />
       )}
     </section>
   )

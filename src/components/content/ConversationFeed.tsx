@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Star, Clock, AlertTriangle, Search } from 'lucide-react'
 import { ConversationCard } from './ConversationCard'
+import { FacetedFilters, applyFacetedFilters, EMPTY_FILTERS } from './FacetedFilters'
+import type { ActiveFilters } from './FacetedFilters'
 import type { Conversation } from '@/types/dashboard'
 
 interface ConversationFeedProps {
@@ -28,6 +30,7 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
   const [sortMode, setSortMode] = useState<SortMode>('notable')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filters, setFilters] = useState<ActiveFilters>({ ...EMPTY_FILTERS })
 
   const stopCount = useMemo(
     () => conversations.filter((c) => c.is_thank_you_interrupt).length,
@@ -39,8 +42,9 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
     [conversations]
   )
 
+  // Apply faceted filters first, then sort/search
   const sorted = useMemo(() => {
-    let items = [...conversations]
+    let items = applyFacetedFilters(conversations, filters)
 
     if (sortMode === 'search' && searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -63,7 +67,7 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
     }
 
     return items
-  }, [conversations, sortMode, searchQuery])
+  }, [conversations, sortMode, searchQuery, filters])
 
   const tabs: { mode: SortMode; icon: React.ReactNode; label: string }[] = [
     { mode: 'notable', icon: <Star size={16} />, label: 'Most Interesting' },
@@ -74,6 +78,13 @@ export function ConversationFeed({ conversations, showTranslations }: Conversati
 
   return (
     <div>
+      {/* Faceted filters */}
+      <FacetedFilters
+        conversations={conversations}
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
+
       {/* Sort tabs */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {tabs.map((tab) => (
