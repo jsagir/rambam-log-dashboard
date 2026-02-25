@@ -5,8 +5,14 @@ import json
 import sys
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+ISRAEL_TZ = ZoneInfo('Asia/Jerusalem')
+
+# Estimated opening audio duration in ms (average pre-recorded clip ~3s)
+ESTIMATED_OPENING_DURATION_MS = 3000
 
 # Topic classification keywords (Hebrew + English)
 TOPIC_RULES = {
@@ -63,6 +69,16 @@ def parse_time(time_str):
     """Parse non-zero-padded time like '2026/2/15 6:53:43'."""
     try:
         return datetime.strptime(time_str, '%Y/%m/%d %H:%M:%S')
+    except (ValueError, TypeError):
+        return None
+
+
+def stt_time_to_epoch_ms(time_str):
+    """Convert STT time string (Israel local, second precision) to epoch ms."""
+    try:
+        dt = datetime.strptime(time_str, '%Y/%m/%d %H:%M:%S')
+        dt_local = dt.replace(tzinfo=ISRAEL_TZ)
+        return int(dt_local.timestamp() * 1000)
     except (ValueError, TypeError):
         return None
 
@@ -177,11 +193,12 @@ def group_interactions(entries):
     # Match each AI group with preceding STT
     used_stt = set()
     for msg_id, ai_entries in ai_groups.items():
-        # Find classification (waiting_audio)
+        # Find classification (waiting_audio) and decompose timestamps
         classification = None
         chunks = []
-        first_ts = None
-        last_ts = None
+        waiting_audio_ts = None   # T1: opening sentence dispatched
+        first_chunk_ts = None     # T2: first LLM stream chunk
+        last_chunk_ts = None      # T3: final stream chunk
 
         for ae in ai_entries:
             msg = ae.get('msg', {})
@@ -192,17 +209,21 @@ def group_interactions(entries):
 
             if msg_type == 'waiting_audio':
                 classification = msg.get('data', {})
-                if ts and (first_ts is None or ts < first_ts):
-                    first_ts = ts
+                if ts:
+                    waiting_audio_ts = ts
             elif msg_type == 'stream_chunk':
                 data = msg.get('data', {})
                 if data.get('result'):
                     chunks.append(data['result'])
                 if ts:
-                    if first_ts is None or ts < first_ts:
-                        first_ts = ts
-                    if last_ts is None or ts > last_ts:
-                        last_ts = ts
+                    if first_chunk_ts is None or ts < first_chunk_ts:
+                        first_chunk_ts = ts
+                    if last_chunk_ts is None or ts > last_chunk_ts:
+                        last_chunk_ts = ts
+
+        # Backward-compatible first_ts/last_ts
+        first_ts = waiting_audio_ts or first_chunk_ts
+        last_ts = last_chunk_ts
 
         # Find the STT that triggered this AI group
         ai_time = parse_time(ai_entries[0].get('time', ''))
@@ -225,7 +246,33 @@ def group_interactions(entries):
         question_time = best_stt.get('time', '') if best_stt else ai_entries[0].get('time', '')
         full_answer = ''.join(chunks)
 
-        # Compute latency
+        # Compute three-latency decomposition (Two-Latency Model)
+        stt_epoch_ms = stt_time_to_epoch_ms(question_time) if question_time else None
+
+        # Opening Latency (T1-T0): silence gap visitor feels
+        opening_latency_ms = None
+        if stt_epoch_ms and waiting_audio_ts:
+            opening_latency_ms = waiting_audio_ts - stt_epoch_ms
+            if opening_latency_ms < 0:
+                opening_latency_ms = None  # Clock skew
+
+        # AI Think Time (T2-T1): hidden behind opening audio
+        ai_think_ms = None
+        if waiting_audio_ts and first_chunk_ts:
+            ai_think_ms = first_chunk_ts - waiting_audio_ts
+
+        # Stream Duration (T3-T2): answer delivery
+        stream_duration_ms = None
+        if first_chunk_ts and last_chunk_ts:
+            stream_duration_ms = last_chunk_ts - first_chunk_ts
+
+        # Out-of-order detection: stream_chunk arrived BEFORE waiting_audio
+        # (David's bug: Rambam receives answer but doesn't speak it)
+        is_out_of_order = False
+        if waiting_audio_ts and first_chunk_ts and first_chunk_ts < waiting_audio_ts:
+            is_out_of_order = True
+
+        # Backward-compatible total latency (T3-T1)
         latency_ms = 0
         if first_ts and last_ts:
             latency_ms = last_ts - first_ts
@@ -253,6 +300,22 @@ def group_interactions(entries):
             anomalies.append('LATENCY_SPIKE_CRITICAL')
         elif latency_ms > 3000:
             anomalies.append('LATENCY_SPIKE_WARN')
+
+        # Out-of-order: answer arrived before opening sentence ID
+        # (David/Starcloud bug: Rambam receives answer but doesn't speak it)
+        if is_out_of_order:
+            anomalies.append('OUT_OF_ORDER')
+
+        # Opening latency anomalies (visitor silence gap)
+        if opening_latency_ms is not None:
+            if opening_latency_ms > 5000:
+                anomalies.append('OPENING_LATENCY_CRITICAL')
+            elif opening_latency_ms > 3000:
+                anomalies.append('OPENING_LATENCY_WARN')
+
+        # Think time overflow: AI took longer than opening audio covers
+        if ai_think_ms is not None and ai_think_ms > ESTIMATED_OPENING_DURATION_MS:
+            anomalies.append('THINK_OVERFLOW')
 
         # Check for non-200 codes
         for ae in ai_entries:
@@ -291,6 +354,10 @@ def group_interactions(entries):
             'opening_text': opening_text,
             'audio_id': audio_id,
             'latency_ms': latency_ms,
+            'opening_latency_ms': opening_latency_ms,
+            'ai_think_ms': ai_think_ms,
+            'stream_duration_ms': stream_duration_ms,
+            'is_out_of_order': is_out_of_order,
             'answer_length': len(full_answer),
             'chunk_count': len(chunks),
             'is_complete': any(
@@ -362,9 +429,13 @@ def compute_daily_summary(interactions, date_str):
     question_types = {}
     hourly = {}
     latencies = [i['latency_ms'] for i in interactions if i['latency_ms'] > 0]
+    opening_lats = [i['opening_latency_ms'] for i in interactions if i.get('opening_latency_ms') and i['opening_latency_ms'] > 0]
+    think_times = [i['ai_think_ms'] for i in interactions if i.get('ai_think_ms') and i['ai_think_ms'] > 0]
+    stream_durs = [i['stream_duration_ms'] for i in interactions if i.get('stream_duration_ms') and i['stream_duration_ms'] > 0]
     failures = sum(1 for i in interactions if i['is_comprehension_failure'])
     no_answers = sum(1 for i in interactions if i['is_no_answer'])
     anomaly_count = sum(1 for i in interactions if i['is_anomaly'])
+    out_of_order_count = sum(1 for i in interactions if i.get('is_out_of_order'))
 
     for inter in interactions:
         lang = inter['language']
@@ -401,6 +472,12 @@ def compute_daily_summary(interactions, date_str):
         'failure_count': failures,
         'no_answer_count': no_answers,
         'anomaly_count': anomaly_count,
+        'out_of_order_count': out_of_order_count,
+        'avg_opening_latency_ms': int(sum(opening_lats) / len(opening_lats)) if opening_lats else 0,
+        'avg_ai_think_ms': int(sum(think_times) / len(think_times)) if think_times else 0,
+        'max_ai_think_ms': max(think_times) if think_times else 0,
+        'avg_stream_duration_ms': int(sum(stream_durs) / len(stream_durs)) if stream_durs else 0,
+        'seamless_rate': round(sum(1 for t in think_times if t < ESTIMATED_OPENING_DURATION_MS) / len(think_times) * 100, 1) if think_times else 0,
         'first_interaction': first_time,
         'last_interaction': last_time,
     }

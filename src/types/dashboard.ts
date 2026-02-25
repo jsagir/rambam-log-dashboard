@@ -21,6 +21,10 @@ export interface KPI {
   avg_interactions_per_day: number
   avg_latency_ms: number
   max_latency_ms: number
+  avg_opening_latency_ms: number
+  avg_ai_think_ms: number
+  seamless_response_rate: number
+  out_of_order_count: number
   anomaly_count: number
   anomaly_rate: number
   failure_count: number
@@ -43,6 +47,12 @@ export interface DailyStat {
   failure_count: number
   no_answer_count: number
   anomaly_count: number
+  out_of_order_count: number
+  avg_opening_latency_ms: number
+  avg_ai_think_ms: number
+  max_ai_think_ms: number
+  avg_stream_duration_ms: number
+  seamless_rate: number
   first_interaction: string
   last_interaction: string
 }
@@ -77,6 +87,10 @@ export interface Conversation {
   opening_text: string
   audio_id: string
   latency_ms: number
+  opening_latency_ms: number | null
+  ai_think_ms: number | null
+  stream_duration_ms: number | null
+  is_out_of_order: boolean
   answer_length: number
   chunk_count: number
   is_complete: boolean

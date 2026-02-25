@@ -146,7 +146,7 @@ export function SystemHealth({ conversations, anomalyLog, dailyStats }: SystemHe
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {anomalyLog.slice(0, 20).map((a, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs py-1 border-b border-border/30 last:border-0">
-                  <span className="text-parchment-dim font-mono shrink-0">{a.date}</span>
+                  <span className="text-parchment-dim font-mono shrink-0">{a.date} {a.time ? extractTime(a.time) : ''}</span>
                   <span className={`font-mono shrink-0 ${
                     ['LANG_UNKNOWN', 'LLM_ERROR', 'NON_200_CODE', 'EMPTY_RESPONSE'].includes(a.type)
                       ? 'text-critical'

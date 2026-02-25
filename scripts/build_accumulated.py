@@ -94,6 +94,13 @@ def build_accumulated():
     # Accuracy / quality
     anomaly_total = sum(1 for i in all_interactions if i.get('is_anomaly'))
     failure_total = sum(1 for i in all_interactions if i.get('is_comprehension_failure'))
+    out_of_order_total = sum(1 for i in all_interactions if i.get('is_out_of_order'))
+
+    # Two-Latency Model aggregations
+    opening_lats = [i['opening_latency_ms'] for i in all_interactions if i.get('opening_latency_ms') and i['opening_latency_ms'] > 0]
+    think_times = [i['ai_think_ms'] for i in all_interactions if i.get('ai_think_ms') and i['ai_think_ms'] > 0]
+    ESTIMATED_OPENING_DURATION_MS = 3000
+    seamless_count = sum(1 for t in think_times if t < ESTIMATED_OPENING_DURATION_MS)
 
     kpi = {
         'total_interactions': total,
@@ -101,6 +108,10 @@ def build_accumulated():
         'avg_interactions_per_day': round(total / total_days, 1) if total_days else 0,
         'avg_latency_ms': int(sum(latencies) / len(latencies)) if latencies else 0,
         'max_latency_ms': max(latencies) if latencies else 0,
+        'avg_opening_latency_ms': int(sum(opening_lats) / len(opening_lats)) if opening_lats else 0,
+        'avg_ai_think_ms': int(sum(think_times) / len(think_times)) if think_times else 0,
+        'seamless_response_rate': round(seamless_count / len(think_times) * 100, 1) if think_times else 0,
+        'out_of_order_count': out_of_order_total,
         'anomaly_count': anomaly_total,
         'anomaly_rate': round(anomaly_total / total * 100, 1) if total else 0,
         'failure_count': failure_total,

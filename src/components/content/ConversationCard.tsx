@@ -65,10 +65,16 @@ export function ConversationCard({
         </div>
 
         {/* Translation (collapsed) */}
-        {showTranslations && isHebrew && c.question_en && !isExpanded && (
-          <div className="translation-text mt-1.5 text-sm">
-            ┈ {truncate(c.question_en, 100)}
-          </div>
+        {showTranslations && isHebrew && !isExpanded && (
+          c.question_en ? (
+            <div className="translation-text mt-1.5 text-sm">
+              ┈ {truncate(c.question_en, 100)}
+            </div>
+          ) : (
+            <div className="mt-1.5 text-sm text-text-dim italic">
+              ┈ Translation not available
+            </div>
+          )
         )}
       </div>
 
@@ -76,10 +82,16 @@ export function ConversationCard({
       {isExpanded && (
         <div className="border-t border-border p-4 bg-background/50">
           {/* Full question with translation */}
-          {showTranslations && isHebrew && c.question_en && (
-            <div className="translation-text text-base mb-3">
-              ┈ {c.question_en}
-            </div>
+          {showTranslations && isHebrew && (
+            c.question_en ? (
+              <div className="translation-text text-base mb-3">
+                ┈ {c.question_en}
+              </div>
+            ) : (
+              <div className="text-base mb-3 text-text-dim italic">
+                ┈ Question translation not available
+              </div>
+            )
           )}
 
           {/* Divider */}
@@ -102,10 +114,16 @@ export function ConversationCard({
           </div>
 
           {/* Answer translation */}
-          {showTranslations && isHebrew && c.answer_en && (
-            <div className="translation-text text-base mt-2">
-              ┈ {c.answer_en}
-            </div>
+          {showTranslations && isHebrew && (
+            c.answer_en ? (
+              <div className="translation-text text-base mt-2">
+                ┈ {c.answer_en}
+              </div>
+            ) : (
+              <div className="text-base mt-2 text-text-dim italic">
+                ┈ Answer translation not available
+              </div>
+            )
           )}
 
           {/* Footer meta */}

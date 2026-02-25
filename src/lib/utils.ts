@@ -7,7 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatLatency(ms: number): string {
   if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  const sec = (ms / 1000).toFixed(1)
+  return `${sec}s (${ms}ms)`
 }
 
 export function formatNumber(n: number): string {
