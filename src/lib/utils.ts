@@ -1,37 +1,35 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
 export function formatLatency(ms: number): string {
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`;
-  }
-  return `${(ms / 1000).toFixed(2)}s`;
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
-export function formatTimestamp(isoString: string): string {
-  return new Date(isoString).toLocaleString();
+export function formatNumber(n: number): string {
+  return new Intl.NumberFormat().format(n)
 }
 
-export function getSeverityColor(severity: 'critical' | 'warning' | 'operational'): string {
-  switch (severity) {
-    case 'critical':
-      return 'text-red-600 bg-red-50 border-red-200';
-    case 'warning':
-      return 'text-amber-600 bg-amber-50 border-amber-200';
-    case 'operational':
-      return 'text-green-600 bg-green-50 border-green-200';
-  }
+export function truncate(text: string, max: number): string {
+  if (text.length <= max) return text
+  return text.slice(0, max) + '...'
 }
 
-export function getHealthStatus(
-  criticalCount: number,
-  warningCount: number
-): '🟢 Healthy' | '🟡 Issues Found' | '🔴 Critical Issues' {
-  if (criticalCount > 0) return '🔴 Critical Issues';
-  if (warningCount > 0) return '🟡 Issues Found';
-  return '🟢 Healthy';
+export function getLatencyColor(ms: number): string {
+  if (ms <= 2000) return '#4A8F6F'
+  if (ms <= 3000) return '#D4A843'
+  return '#C75B3A'
+}
+
+export function extractTime(timeStr: string): string {
+  // "2026/2/15 6:53:43" → "6:53"
+  const parts = timeStr.split(' ')
+  if (parts.length < 2) return timeStr
+  const time = parts[1]
+  const timeParts = time.split(':')
+  return `${timeParts[0]}:${timeParts[1]}`
 }
