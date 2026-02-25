@@ -20,7 +20,7 @@ services:
     runtime: node
     branch: main
     buildCommand: echo "no build needed"
-    startCommand: node api/openai-proxy.js
+    startCommand: node api/openai-proxy.cjs
     envVars:
       - key: OPENAI_KEY
         sync: false
