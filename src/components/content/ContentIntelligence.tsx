@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ConversationFeed } from './ConversationFeed'
 import { TopicCharts } from './TopicCharts'
 import { HotTopics } from './HotTopics'
+import { OpeningSentences } from './OpeningSentences'
 import type { Conversation, DailyStat, TopicTrend, KPI } from '@/types/dashboard'
 
 interface ContentIntelligenceProps {
@@ -12,7 +13,7 @@ interface ContentIntelligenceProps {
   showTranslations: boolean
 }
 
-type Tab = 'feed' | 'hot' | 'charts'
+type Tab = 'feed' | 'hot' | 'charts' | 'openings'
 
 export function ContentIntelligence({
   conversations,
@@ -25,7 +26,7 @@ export function ContentIntelligence({
 
   return (
     <section className="mb-8">
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
         <h2 className="font-serif text-2xl text-gold" title="This shows what visitors are asking Rambam about. Browse individual conversations or see topic trends in the charts.">What Visitors Are Asking</h2>
         <div className="flex bg-card border border-border rounded-md overflow-hidden text-base">
           <button
@@ -49,6 +50,16 @@ export function ContentIntelligence({
             Hot Topics
           </button>
           <button
+            onClick={() => setActiveTab('openings')}
+            className={`px-5 py-2 transition-colors ${
+              activeTab === 'openings'
+                ? 'bg-gold/20 text-gold'
+                : 'text-text-dim hover:text-parchment'
+            }`}
+          >
+            Opening Sentences
+          </button>
+          <button
             onClick={() => setActiveTab('charts')}
             className={`px-5 py-2 transition-colors ${
               activeTab === 'charts'
@@ -68,6 +79,8 @@ export function ContentIntelligence({
         />
       ) : activeTab === 'hot' ? (
         <HotTopics conversations={conversations} />
+      ) : activeTab === 'openings' ? (
+        <OpeningSentences conversations={conversations} />
       ) : (
         <TopicCharts
           dailyStats={dailyStats}
