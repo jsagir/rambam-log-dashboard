@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Play, Pause, Volume2 } from 'lucide-react'
 import type { Conversation } from '@/types/dashboard'
@@ -8,9 +8,18 @@ interface OpeningSentencesProps {
   conversations: Conversation[]
 }
 
+interface SentenceMeta {
+  category: string
+  text_en: string
+  text_he: string
+}
+
 interface SentenceStats {
   audioId: string
   text: string
+  textEn: string
+  textHe: string
+  category: string
   count: number
   languages: Record<string, number>
   topics: Record<string, number>
@@ -20,6 +29,14 @@ interface SentenceStats {
   audioDurationEn: number | null
   seamlessRate: number
   netGaps: number[]
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Statement': '#C8A961',
+  'Open Questions': '#3498DB',
+  'Closed Question': '#E67E22',
+  'Generic': '#6B7280',
+  'Personal / Current': '#E91E63',
 }
 
 const TOOLTIP_STYLE = {
@@ -66,9 +83,28 @@ function AudioPlayer({ audioId, lang }: { audioId: string; lang: 'he' | 'en' }) 
   )
 }
 
+function normCategory(raw: string): string {
+  const lower = raw.trim().toLowerCase()
+  if (lower === 'statement') return 'Statement'
+  if (lower === 'open questions') return 'Open Questions'
+  if (lower.startsWith('a closed question')) return 'Closed Question'
+  if (lower === 'generic') return 'Generic'
+  if (lower.startsWith('personal')) return 'Personal / Current'
+  return raw.trim()
+}
+
 export function OpeningSentences({ conversations }: OpeningSentencesProps) {
   const [sortBy, setSortBy] = useState<'count' | 'latency' | 'duration'>('count')
   const [filterLang, setFilterLang] = useState<'all' | 'he' | 'en'>('all')
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [sentenceMeta, setSentenceMeta] = useState<Record<string, SentenceMeta>>({})
+
+  useEffect(() => {
+    fetch('/data/opening_sentences.json')
+      .then(r => r.json())
+      .then(data => setSentenceMeta(data))
+      .catch(() => {})
+  }, [])
 
   const stats = useMemo(() => {
     const map: Record<string, SentenceStats> = {}
@@ -77,10 +113,15 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
       const aid = c.audio_id
       if (!aid) continue
 
+      const meta = sentenceMeta[aid]
+
       if (!map[aid]) {
         map[aid] = {
           audioId: aid,
           text: c.opening_text || '',
+          textEn: meta?.text_en || '',
+          textHe: meta?.text_he || '',
+          category: meta ? normCategory(meta.category) : '',
           count: 0,
           languages: {},
           topics: {},
@@ -122,15 +163,23 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
     }
 
     return Object.values(map)
-  }, [conversations])
+  }, [conversations, sentenceMeta])
 
   const sorted = useMemo(() => {
-    const list = [...stats]
+    let list = [...stats]
+    if (filterCategory !== 'all') {
+      list = list.filter(s => s.category === filterCategory)
+    }
     if (sortBy === 'count') list.sort((a, b) => b.count - a.count)
     else if (sortBy === 'latency') list.sort((a, b) => b.avgOpeningLatency - a.avgOpeningLatency)
     else list.sort((a, b) => (b.audioDurationHe || b.audioDurationEn || 0) - (a.audioDurationHe || a.audioDurationEn || 0))
     return list
-  }, [stats, sortBy])
+  }, [stats, sortBy, filterCategory])
+
+  const categories = useMemo(() => {
+    const cats = [...new Set(stats.map(s => s.category).filter(Boolean))]
+    return cats.sort()
+  }, [stats])
 
   // Summary stats
   const summary = useMemo(() => {
@@ -164,7 +213,7 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-card border border-border rounded-lg p-4 text-center">
           <div className="text-xs text-parchment-dim uppercase">Unique Sentences</div>
           <div className="text-2xl font-bold font-mono text-gold">{summary.uniqueIds}</div>
@@ -184,6 +233,17 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
           <div className="text-xs text-parchment-dim uppercase">Most Used</div>
           <div className="text-2xl font-bold font-mono text-gold">#{summary.mostUsed?.audioId}</div>
           <div className="text-xs text-parchment-dim">{summary.mostUsed?.count}x plays</div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4 text-center">
+          <div className="text-xs text-parchment-dim uppercase">Categories</div>
+          <div className="text-2xl font-bold font-mono text-parchment">{categories.length}</div>
+          <div className="flex flex-wrap justify-center gap-1 mt-1">
+            {categories.map(cat => (
+              <span key={cat} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: (CATEGORY_COLORS[cat] || '#6B7280') + '22', color: CATEGORY_COLORS[cat] || '#6B7280' }}>
+                {cat}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -221,6 +281,25 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2 text-sm flex-wrap">
+          <span className="text-parchment-dim">Category:</span>
+          <button
+            onClick={() => setFilterCategory('all')}
+            className={`px-3 py-1 rounded text-xs transition-colors ${filterCategory === 'all' ? 'bg-gold/20 text-gold' : 'text-parchment-dim hover:text-parchment'}`}
+          >
+            All
+          </button>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilterCategory(cat)}
+              className={`px-3 py-1 rounded text-xs transition-colors ${filterCategory === cat ? 'text-white' : 'text-parchment-dim hover:text-parchment'}`}
+              style={filterCategory === cat ? { backgroundColor: (CATEGORY_COLORS[cat] || '#6B7280') + '33', color: CATEGORY_COLORS[cat] || '#C8A961' } : undefined}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2 text-sm">
           <span className="text-parchment-dim">Play:</span>
           {(['all', 'he', 'en'] as const).map(l => (
@@ -242,6 +321,7 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
             <tr className="text-left text-xs text-parchment-dim border-b border-border bg-card">
               <th className="p-3 w-10">#</th>
               <th className="p-3 w-12">Play</th>
+              <th className="p-3 w-28">Category</th>
               <th className="p-3">Opening Sentence</th>
               <th className="p-3 w-16 text-center">Used</th>
               <th className="p-3 w-20 text-center">Duration</th>
@@ -267,8 +347,19 @@ export function OpeningSentences({ conversations }: OpeningSentencesProps) {
                       {(filterLang === 'all' || filterLang === 'en') && <AudioPlayer audioId={s.audioId} lang="en" />}
                     </div>
                   </td>
-                  <td className="p-3 text-parchment-dim text-xs max-w-[300px]">
-                    <span className="line-clamp-2">{s.text || '—'}</span>
+                  <td className="p-3">
+                    {s.category ? (
+                      <span
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                        style={{ backgroundColor: (CATEGORY_COLORS[s.category] || '#6B7280') + '22', color: CATEGORY_COLORS[s.category] || '#6B7280' }}
+                      >
+                        {s.category}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className="p-3 text-xs max-w-[300px]">
+                    <span className="line-clamp-2 text-parchment">{s.textEn || s.text || '—'}</span>
+                    {s.textHe && <span className="line-clamp-1 text-parchment-dim text-[11px] mt-0.5 block" dir="rtl">{s.textHe}</span>}
                   </td>
                   <td className="p-3 text-center font-mono font-bold" style={{ color: s.count >= 8 ? '#C8A961' : '#F5F0E8' }}>
                     {s.count}

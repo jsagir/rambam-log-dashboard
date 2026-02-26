@@ -163,6 +163,57 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
     return { openingAvg, thinkAvg, openingP95, thinkP95, openingMax, thinkMax, seamlessRate, openingCount: sortedOpening.length, thinkCount: sortedThink.length, gappedCount, avgGap, worstGap, totalWithGapData: netGaps.length }
   }, [conversations])
 
+  // Per-language two-latency breakdown
+  const langLatencyBreakdown = useMemo(() => {
+    const groups: Record<string, { label: string; convos: Conversation[] }> = {
+      'he': { label: 'Hebrew', convos: [] },
+      'en': { label: 'English', convos: [] },
+      'unknown': { label: 'Unknown', convos: [] },
+    }
+    for (const c of conversations) {
+      if (c.language?.startsWith('he')) groups['he'].convos.push(c)
+      else if (c.language?.startsWith('en')) groups['en'].convos.push(c)
+      else groups['unknown'].convos.push(c)
+    }
+
+    return Object.entries(groups)
+      .filter(([, g]) => g.convos.length > 0)
+      .map(([key, g]) => {
+        const cs = g.convos
+        const openings = cs.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!)
+        const thinks = cs.filter(c => c.ai_think_ms != null && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
+        const e2e = cs.filter(c => c.latency_ms > 0).map(c => c.latency_ms)
+        const seamlessCount = cs.filter(c =>
+          c.ai_think_ms != null && c.opening_audio_duration_ms != null &&
+          c.ai_think_ms < c.opening_audio_duration_ms
+        ).length
+        const netGaps = cs.filter(c => c.net_gap_ms != null).map(c => c.net_gap_ms!)
+        const gapped = netGaps.filter(g => g > 0)
+
+        const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
+        const p95 = (arr: number[]) => {
+          if (arr.length === 0) return 0
+          const s = [...arr].sort((a, b) => a - b)
+          return s[Math.floor(s.length * 0.95)]
+        }
+
+        return {
+          key,
+          label: g.label,
+          count: cs.length,
+          silenceAvg: avg(openings),
+          silenceP95: p95(openings),
+          thinkAvg: avg(thinks),
+          thinkP95: p95(thinks),
+          e2eAvg: avg(e2e),
+          e2eP95: p95(e2e),
+          seamlessRate: thinks.length > 0 ? Math.round(seamlessCount / thinks.length * 100) : 0,
+          gappedCount: gapped.length,
+          worstGap: gapped.length > 0 ? Math.max(...gapped) : 0,
+        }
+      })
+  }, [conversations])
+
   // Daily two-latency trend
   const dailyTwoLatency = useMemo(() => {
     return dailyStats.map(d => ({
@@ -327,6 +378,77 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
               </div>
             )}
           </div>
+
+          {/* Per-language latency breakdown */}
+          {langLatencyBreakdown.length > 1 && (
+            <div className="mb-4">
+              <div className="text-xs text-parchment-dim mb-3 font-semibold uppercase tracking-wide">Latency by Language</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {langLatencyBreakdown.map(lang => (
+                  <div key={lang.key} className="bg-background rounded-lg p-4 border border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-parchment">{lang.label}</span>
+                      <span className="text-xs text-parchment-dim font-mono">{lang.count} questions</span>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-parchment-dim flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#6366F1' }} />
+                          Silence Gap
+                        </span>
+                        <div className="flex gap-3">
+                          <span className="font-mono" style={{ color: getLatencyColor(lang.silenceAvg) }}>{formatLatency(lang.silenceAvg)}</span>
+                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.silenceP95)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-parchment-dim flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#C8A961' }} />
+                          AI Behind Opening
+                        </span>
+                        <div className="flex gap-3">
+                          <span className="font-mono" style={{ color: getLatencyColor(lang.thinkAvg) }}>{formatLatency(lang.thinkAvg)}</span>
+                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.thinkP95)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-parchment-dim flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#E0D5C0' }} />
+                          E2E Total
+                        </span>
+                        <div className="flex gap-3">
+                          <span className="font-mono" style={{ color: getLatencyColor(lang.e2eAvg) }}>{formatLatency(lang.e2eAvg)}</span>
+                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.e2eP95)}</span>
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-border/30">
+                        <div className="flex items-center justify-between">
+                          <span className="text-parchment-dim">Seamless</span>
+                          <span className="font-mono font-bold" style={{ color: lang.seamlessRate >= 90 ? '#4A8F6F' : lang.seamlessRate >= 70 ? '#D4A843' : '#C75B3A' }}>
+                            {lang.seamlessRate}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded bg-card overflow-hidden mt-1">
+                          <div
+                            className="h-full rounded transition-all"
+                            style={{
+                              width: `${lang.seamlessRate}%`,
+                              backgroundColor: lang.seamlessRate >= 90 ? '#4A8F6F' : lang.seamlessRate >= 70 ? '#D4A843' : '#C75B3A',
+                            }}
+                          />
+                        </div>
+                        {lang.gappedCount > 0 && (
+                          <div className="text-[10px] text-parchment-dim mt-1">
+                            <span style={{ color: '#C75B3A' }}>{lang.gappedCount}</span> gaps (worst: {formatLatency(lang.worstGap)})
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Daily two-latency trend */}
           {dailyTwoLatency.length > 1 && (

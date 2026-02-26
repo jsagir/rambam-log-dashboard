@@ -1,0 +1,332 @@
+{
+  "1": {
+    "category": "STATEMENT",
+    "text_en": "The issue raised here requires some additional thought on my part.",
+    "text_he": "העניין שהועלה כאן מצריך ממני מחשבה נוספת"
+  },
+  "2": {
+    "category": "STATEMENT",
+    "text_en": "I’ll be glad to speak about this topic in depth.",
+    "text_he": "אני אדבר על הנושא הזה בשמחה רבה"
+  },
+  "3": {
+    "category": "STATEMENT",
+    "text_en": "I’ve heard your words, and I’ll respond to them appropriately.",
+    "text_he": "שמעתי את הדברים ואתייחס אליהם כראוי"
+  },
+  "4": {
+    "category": "STATEMENT",
+    "text_en": "I listened to what was said, and I appreciate you bringing it forward.",
+    "text_he": "הקשבתי לדברים ואני מעריך את עצם שיתופם"
+  },
+  "5": {
+    "category": "STATEMENT",
+    "text_en": "Thank you for sharing your thoughts on this matter.",
+    "text_he": "תודה ששיתפתם במחשבותיכם בעניין זה"
+  },
+  "6": {
+    "category": "STATEMENT",
+    "text_en": "I’ve heard your wise words, and I will respond accordingly.",
+    "text_he": "שמעתי את דבריך החכמים ואגיב אליהם בהתאם"
+  },
+  "7": {
+    "category": "STATEMENT",
+    "text_en": "The words spoken here have reached me, and I respect them.",
+    "text_he": "המילים שנאמרו כאן הגיעו אלי ואני מכבד אותן"
+  },
+  "8": {
+    "category": "STATEMENT",
+    "text_en": "A point was raised here that deserves a proper and thoughtful reply.",
+    "text_he": "הועלתה כאן נקודה שראויה למענה הולם"
+  },
+  "9": {
+    "category": "STATEMENT",
+    "text_en": "I’ve been blessed by the words shared, and I’ll return that blessing with my own.",
+    "text_he": "בורכתי בדברים שנאמרו ואחזיר ברכה במילותיי."
+  },
+  "10": {
+    "category": "personal advice or current event questions",
+    "text_en": "Even though I lived in another era, I will share my thoughts.",
+    "text_he": "אף על פי שחייתי בזמן אחר, אשתף את מחשבותיי"
+  },
+  "11": {
+    "category": "personal advice or current event questions",
+    "text_en": "Let’s see what I can contribute to understanding the time in which you live.",
+    "text_he": "בואו נראה מה אוכל לתרום להבנת הזמן בו אתם חיים"
+  },
+  "12": {
+    "category": "personal advice or current event questions",
+    "text_en": "It is fascinating to reflect on your age through my own eyes.",
+    "text_he": "מעניין לחשוב על התקופה שלכם דרך העיניים שלי"
+  },
+  "13": {
+    "category": "personal advice or current event questions",
+    "text_en": "I will consider my answer in relation to the period you inhabit.",
+    "text_he": "אשקול את תשובתי בהתייחס לתקופה בה אתם חיים."
+  },
+  "14": {
+    "category": "personal advice or current event questions",
+    "text_en": "Ancient wisdom may still be useful today",
+    "text_he": "החכמה הקדומה עשויה להועיל גם כיום"
+  },
+  "15": {
+    "category": "personal advice or current event questions",
+    "text_en": "The foundations of the Torah are true for every time and place.",
+    "text_he": "יסודות התורה נכונים לכל זמן ומקום."
+  },
+  "16": {
+    "category": "personal advice or current event questions",
+    "text_en": "It is intriguing to build a bridge between my world and yours.",
+    "text_he": "מרתק לגשר בין עולמי לעולמכם"
+  },
+  "17": {
+    "category": "personal advice or current event questions",
+    "text_en": "Timeless principles remain relevant in the present.",
+    "text_he": "עקרונות נצחיים מתאימים גם להווה."
+  },
+  "18": {
+    "category": "personal advice or current event questions",
+    "text_en": "Allow me to lay out my perspective on the reality of your day.",
+    "text_he": "אפרוש בפניכם את השקפתי על המציאות הנוכחית"
+  },
+  "19": {
+    "category": "personal advice or current event questions",
+    "text_en": "I will share with you from my experience and memories on this matter.",
+    "text_he": "אחלוק עמכם מניסיוני ומזיכרונותיי בעניין"
+  },
+  "20": {
+    "category": "personal advice or current event questions",
+    "text_en": "I will share what I knew and experienced in my time.",
+    "text_he": "אשתף את מה שידעתי וחוויתי בזמני."
+  },
+  "21": {
+    "category": "personal advice or current event questions",
+    "text_en": "I’ll be glad to speak about how things were in my day.",
+    "text_he": "אספר ברצון רב על מה שהיה בימינו."
+  },
+  "22": {
+    "category": "personal advice or current event questions",
+    "text_en": "In my answer, I will open a window for you into my era and its customs.",
+    "text_he": "בתשובה שלי אפתח לכם צוהר לתקופה שלי ולמנהגיה"
+  },
+  "23": {
+    "category": "personal advice or current event questions",
+    "text_en": "You remind me of things that happened long, long ago.",
+    "text_he": "אתם מזכירים לי דברים שקרו מימים ימימה"
+  },
+  "24": {
+    "category": "personal advice or current event questions",
+    "text_en": "How interesting! Let me give you an example from my own life and work.",
+    "text_he": "מעניין! בוא ואתן לכם דוגמא מתוך חיי ופועלי"
+  },
+  "25": {
+    "category": "personal advice or current event questions",
+    "text_en": "I hope my answer will shed light on what took place in the past.",
+    "text_he": "אני מקווה שתשובתי תבהיר את שהיה בעבר"
+  },
+  "26": {
+    "category": "A closed question",
+    "text_en": "In this case, I hope to answer your question with the clarity it deserves.",
+    "text_he": "אשיב על השאלה בבהירות הנדרשת"
+  },
+  "27": {
+    "category": "A closed question",
+    "text_en": "The answer to this question is clear, and I will lay it out.",
+    "text_he": "התשובה לשאלה הזאת ברורה ואפרט אותה."
+  },
+  "28": {
+    "category": "A closed question",
+    "text_en": "I will respond with a direct and straightforward answer, as required.",
+    "text_he": "אענה לשאלה הזאת תשובה ישירה כמתבקש"
+  },
+  "29": {
+    "category": "A closed question",
+    "text_en": "Here is the clear and decisive answer to that question.",
+    "text_he": "הנה התשובה ברורה וחדה לשאלה הזאת"
+  },
+  "30": {
+    "category": "A closed question",
+    "text_en": "I will address this question briefly and precisely.",
+    "text_he": "אשיב בקצרה ובדיוק על השאלה הזאת"
+  },
+  "31": {
+    "category": "A closed question",
+    "text_en": "The matter is simple, and I will clarify it at once.",
+    "text_he": "העניין פשוט ואבהיר אותו מיד."
+  },
+  "32": {
+    "category": "A closed question",
+    "text_en": "There is a sharp and definite response, which I will now present.",
+    "text_he": "יש לכך מענה חד וברור שאציג עכשיו"
+  },
+  "33": {
+    "category": "A closed question",
+    "text_en": "Short and to the point  is my preferred approach with this style question.",
+    "text_he": "אמסור לכם את כל הידוע והמוסכם בעניין הזה."
+  },
+  "34": {
+    "category": "A closed question",
+    "text_en": "The issue is clear, and I will explain it concisely.",
+    "text_he": "הדבר ברור ואפרש אותו בקיצור."
+  },
+  "35": {
+    "category": "A closed question",
+    "text_en": "Let me tell you the simple truth about this.",
+    "text_he": "אגיד לכם את האמת הפשוטה בעניין הזה."
+  },
+  "36": {
+    "category": "A closed question",
+    "text_en": "Your question opens many possible paths for an answer.",
+    "text_he": "זאת שאלה שפותחת כיוונים רבים לתשובה"
+  },
+  "37": {
+    "category": "Open questions",
+    "text_en": "I love questions that can be explored through many sources. Let us delve into this!",
+    "text_he": "יש צדדים שונים לסוגייה זו"
+  },
+  "38": {
+    "category": "Open questions",
+    "text_en": "I would like to share my thoughts with you on this matter.",
+    "text_he": "אני רוצה לשתף אתכם במחשבותיי על הנושא הזה"
+  },
+  "39": {
+    "category": "Open questions",
+    "text_en": "There are multiple dimensions to consider—take them as you will.",
+    "text_he": "ישנם כמה היבטים בעניין - לשיקולכם."
+  },
+  "40": {
+    "category": "Open questions",
+    "text_en": "This is a complex subject; let us explore it together.",
+    "text_he": "זה נושא מורכב, בואו נדון בו ביחד."
+  },
+  "41": {
+    "category": "Open questions",
+    "text_en": "This question invites reflection and dialogue.",
+    "text_he": "השאלה הזאת מזמינה הרהור ושיחה"
+  },
+  "42": {
+    "category": "Open questions",
+    "text_en": "It is a topic with many sides—let us examine them.",
+    "text_he": "זאת סוגיה עם פנים רבות. בואו נבחן אותן."
+  },
+  "43": {
+    "category": "Open questions",
+    "text_en": "The space for thought here is very large.",
+    "text_he": "מרחב המחשבה בעניין הזה הוא גדול מאד."
+  },
+  "44": {
+    "category": "Open questions",
+    "text_en": "Interesting… this opens the door to a much broader discussion.",
+    "text_he": "מעניין, יש פה פתח לדיון בסוגיה רחבה"
+  },
+  "45": {
+    "category": "Generic",
+    "text_en": "Hmm… allow me to try to answer that for you.",
+    "text_he": "המממ, בוא ואענה לכם"
+  },
+  "46": {
+    "category": "Generic",
+    "text_en": "Thank you for the question,allow me to provide a brief answer.",
+    "text_he": "תודה על השאלה, אענה לכם בקצרה"
+  },
+  "47": {
+    "category": "Generic",
+    "text_en": "Thank you — I’ll delve into the answer for you.",
+    "text_he": "תודה, אעמיק למענכם בתשובה"
+  },
+  "48": {
+    "category": "Generic",
+    "text_en": "Thank you — this is something we can definitely talk about.",
+    "text_he": "תודה, אפשר בהחלט לדבר על זה"
+  },
+  "49": {
+    "category": "Generic",
+    "text_en": "Let’s clarify things together.",
+    "text_he": "בוא נבהיר את הדברים"
+  },
+  "50": {
+    "category": "Generic",
+    "text_en": "Thank you for raising this; here are a few points to consider.",
+    "text_he": "תודה שהעלתם את זה, הנה כמה נקודות"
+  },
+  "51": {
+    "category": "Generic",
+    "text_en": "That is a thoughtful and beautiful question…",
+    "text_he": "איזה שאלה מקסימה.."
+  },
+  "52": {
+    "category": "Generic",
+    "text_en": "I’m happy to explain — thank you for asking.",
+    "text_he": "אשמח להסביר, תודה ששאלתם."
+  },
+  "53": {
+    "category": "Generic",
+    "text_en": "Thank you for asking and giving me the chance to respond.",
+    "text_he": "תודה ששאלתם ואיפשרתם לי לענות"
+  },
+  "54": {
+    "category": "Generic",
+    "text_en": "I’ve missed questions like yours.  I will be happy to answer you",
+    "text_he": "התגעגעתי לשאלות שלכם"
+  },
+  "55": {
+    "category": "Generic",
+    "text_en": "It has been a while since anyone asked me this question.",
+    "text_he": "מזמן לא שאלו אותי את השאלה הזאת"
+  },
+  "56": {
+    "category": "Generic",
+    "text_en": "I will gladly answer this question, BEEZRAT HASHEM",
+    "text_he": "אשמח להשיב על השאלה בעזרת השם"
+  },
+  "57": {
+    "category": "Generic",
+    "text_en": "I’ll speak about this topic with real joy.",
+    "text_he": "אני אדבר על הנושא הזה בשמחה רבה"
+  },
+  "58": {
+    "category": "Generic",
+    "text_en": "Thank you for the curiosity that brought this question forward.",
+    "text_he": "תודה על הסקרנות שהובילה לשאלה הזאת"
+  },
+  "59": {
+    "category": "Generic",
+    "text_en": "Ahhhh…..I appreciate you asking me this.",
+    "text_he": "אהה… תודה ששאלתם אותי את זה. אני באמת מעריך את זה."
+  },
+  "60": {
+    "category": "Generic",
+    "text_en": "Hmm… a good question deserves a good answer.",
+    "text_he": "המממ.... שאלה טובה מצריכה תשובה טובה"
+  },
+  "61": {
+    "category": "Generic",
+    "text_en": "My dear visitor, I am happy to respond to your question, with G-d's help.",
+    "text_he": "אשמח להשיב על השאלה בעזרת השם"
+  },
+  "62": {
+    "category": "Generic",
+    "text_en": "I heard your question, and I’ll do my best to give a meaningful answer.",
+    "text_he": "שמעתי את השאלה ואשתדל לתת תשובה מספקת"
+  },
+  "63": {
+    "category": "Generic",
+    "text_en": "That’s an interesting question, and I’m happy to address it.",
+    "text_he": "זאת שאלה מעניינת ואענה עליה בחפץ לב"
+  },
+  "64": {
+    "category": "Generic",
+    "text_en": "I listened carefully to this important question. And this is my sincere answer.",
+    "text_he": "הקשבתי היטב לשאלה החשובה הזאת וזאת תשובתי הכנה."
+  },
+  "65": {
+    "category": "Generic",
+    "text_en": "This question has arrived at exactly the right place, and I’ll explain.",
+    "text_he": "השאלה הזאת הגיעה למקום הנכון, ואסביר"
+  },
+  "66": {
+    "category": "Generic",
+    "text_en": "This question deserves special attention.",
+    "text_he": "השאלה הזאת ראויה להתייחסות מיוחדת"
+  }
+}

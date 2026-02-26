@@ -93,7 +93,18 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
     // Total to answer = opening + think (sequential model)
     const totalToAnswer = avgOpening + avgThink
 
-    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts, avgOpening, avgThink, seamlessRate, totalToAnswer }
+    // Per-language latency breakdown
+    const heCvs = convos.filter(c => c.language?.startsWith('he'))
+    const enCvs = convos.filter(c => c.language?.startsWith('en'))
+    const avgFn = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
+    const heOpening = avgFn(heCvs.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!))
+    const enOpening = avgFn(enCvs.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!))
+    const heThink = avgFn(heCvs.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!))
+    const enThink = avgFn(enCvs.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!))
+    const heTotal = heOpening + heThink
+    const enTotal = enOpening + enThink
+
+    return { total, avgLatency, medianLatency, p95Latency, latencySpikes, anomalies, hebrewPct, health, healthEmoji, langCounts, avgOpening, avgThink, seamlessRate, totalToAnswer, heOpening, enOpening, heThink, enThink, heTotal, enTotal }
   }, [data, selectedDate])
 
   const dailySpark = data.daily_stats.map((d) => d.total_conversations)
@@ -118,7 +129,7 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           icon={<Clock size={18} />}
           sparkData={openingSpark}
           sparkColor={stats.avgOpening > 3000 ? '#C75B3A' : stats.avgOpening > 2000 ? '#D4A843' : '#4A8F6F'}
-          subtitle="Before visitor hears anything"
+          subtitle={`HE ${formatLatency(stats.heOpening)} · EN ${formatLatency(stats.enOpening)}`}
           tooltip="The silence the visitor FEELS after finishing their question, before Rambam starts speaking. Both the opening pipeline and LLM start in parallel at this point. Under 2s ideal, over 3s uncomfortable."
         />
         <StatCard
@@ -127,7 +138,7 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           icon={<Clock size={18} />}
           sparkData={totalSpark}
           sparkColor={stats.totalToAnswer > 5000 ? '#C75B3A' : stats.totalToAnswer > 3500 ? '#D4A843' : '#4A8F6F'}
-          subtitle="Answer buffered and waiting"
+          subtitle={`HE ${formatLatency(stats.heTotal)} · EN ${formatLatency(stats.enTotal)}`}
           tooltip="Total time from question end until the AI answer is ready (T2-T0). Both pipelines run in parallel from T0. The answer arrives at this time and waits in the buffer. Visitor hears it after the opening audio finishes."
         />
         <StatCard
@@ -136,7 +147,7 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           icon={<Clock size={18} />}
           sparkData={thinkSpark}
           sparkColor={stats.avgThink > 3000 ? '#C75B3A' : stats.avgThink > 2000 ? '#D4A843' : '#4A8F6F'}
-          subtitle={`${stats.seamlessRate}% covered by opening audio`}
+          subtitle={`HE ${formatLatency(stats.heThink)} · EN ${formatLatency(stats.enThink)} · ${stats.seamlessRate}% seamless`}
           tooltip="Remaining LLM time AFTER the opening fires. The opening audio (~3s) plays over this gap. If the AI finishes before the audio ends, the visitor hears zero second silence. The percentage shows how often this works."
         />
         <StatCard
