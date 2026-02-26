@@ -6,6 +6,7 @@ import { SystemHealth } from '@/components/health/SystemHealth'
 import { LatencyPanel } from '@/components/health/LatencyPanel'
 import { AskPanel } from '@/components/content/AskPanel'
 import { TalkWithRambam } from '@/components/content/TalkWithRambam'
+import { OperationalIntelligence } from '@/components/health/OperationalIntelligence'
 import { Loader2, TrendingUp, CalendarSearch, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ViewMode = 'cumulative' | 'drilldown'
@@ -213,6 +214,13 @@ export function App() {
       <LatencyPanel
         conversations={filteredConversations}
         dailyStats={data.daily_stats}
+      />
+
+      {/* Zone 2.75: Operational Intelligence */}
+      <OperationalIntelligence
+        conversations={filteredConversations}
+        dailyStats={data.daily_stats}
+        dateRange={data.meta.date_range}
       />
 
       {/* Zone 3: System Issues */}
