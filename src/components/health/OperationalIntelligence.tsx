@@ -6,6 +6,7 @@ import {
 import { Globe, Calendar, Zap, Users } from 'lucide-react'
 import type { Conversation, DailyStat } from '@/types/dashboard'
 import { formatLatency, getLatencyColor } from '@/lib/utils'
+import { getHebrewCalendarRange } from '@/lib/hebrew-calendar'
 
 interface OperationalIntelligenceProps {
   conversations: Conversation[]
@@ -156,15 +157,30 @@ function UnknownLanguageSection({ conversations }: { conversations: Conversation
   )
 }
 
-// ─── 2. Uptime / Availability Calendar ──────────────────────────────
+// ─── 2. Uptime / Availability Calendar (with Hebrew Calendar) ──────
 
 function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; dateRange: [string, string] }) {
   const calendarData = useMemo(() => {
-    // Generate all dates in range
     const start = new Date(dateRange[0] + 'T12:00:00')
     const end = new Date(dateRange[1] + 'T12:00:00')
-    const days: { date: string; dayName: string; count: number; status: 'active' | 'low' | 'offline'; hours: string }[] = []
 
+    // Get Hebrew calendar data for the full range
+    const hebrewMap = getHebrewCalendarRange(dateRange[0], dateRange[1])
+
+    type DayEntry = {
+      date: string; dayName: string; count: number
+      status: 'active' | 'low' | 'offline'
+      reason: 'shabbat' | 'holiday' | 'maintenance' | null
+      reasonLabel: string | null
+      reasonLabelEn: string | null
+      hebrewDate: string
+      hebrewDay: string
+      holidayHe: string | null
+      holidayEn: string | null
+      hours: string
+    }
+
+    const days: DayEntry[] = []
     const statMap = new Map(dailyStats.map(d => [d.date, d]))
 
     const d = new Date(start)
@@ -173,6 +189,7 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
       const stat = statMap.get(iso)
       const count = stat?.total_conversations || 0
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
+      const heb = hebrewMap.get(iso)
 
       let hours = ''
       if (stat) {
@@ -181,11 +198,43 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
         hours = firstH && lastH ? `${firstH}–${lastH}` : ''
       }
 
+      // Determine offline reason
+      let reason: DayEntry['reason'] = null
+      let reasonLabel: string | null = null
+      let reasonLabelEn: string | null = null
+
+      if (count === 0 && heb) {
+        if (heb.isShabbat) {
+          reason = 'shabbat'
+          reasonLabel = 'שבת'
+          reasonLabelEn = 'Shabbat'
+        } else if (heb.isClosed && heb.closureReason) {
+          reason = 'holiday'
+          reasonLabel = heb.closureReason
+          reasonLabelEn = heb.closureReasonEn
+        } else if (heb.isFriday) {
+          reason = 'shabbat'
+          reasonLabel = 'ערב שבת'
+          reasonLabelEn = 'Erev Shabbat'
+        } else {
+          reason = 'maintenance'
+          reasonLabel = 'תחזוקה / סגור'
+          reasonLabelEn = 'Maintenance / Closed'
+        }
+      }
+
       days.push({
         date: iso,
         dayName,
         count,
         status: count === 0 ? 'offline' : count < 5 ? 'low' : 'active',
+        reason,
+        reasonLabel,
+        reasonLabelEn,
+        hebrewDate: heb?.hebrewDate || '',
+        hebrewDay: heb?.hebrewDay || '',
+        holidayHe: heb?.holidayHe || null,
+        holidayEn: heb?.holidayEn || null,
         hours,
       })
       d.setDate(d.getDate() + 1)
@@ -195,26 +244,42 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
     const activeDays = days.filter(d => d.status === 'active').length
     const lowDays = days.filter(d => d.status === 'low').length
     const offlineDays = days.filter(d => d.status === 'offline').length
-    const uptimePct = totalDays > 0 ? Math.round((activeDays + lowDays) / totalDays * 100) : 0
+    const shabbatDays = days.filter(d => d.reason === 'shabbat').length
+    const holidayDays = days.filter(d => d.reason === 'holiday').length
+    const maintenanceDays = days.filter(d => d.reason === 'maintenance').length
+    // Operational = excluding expected closures (Shabbat/holidays)
+    const expectedClosures = shabbatDays + holidayDays
+    const operationalDays = totalDays - expectedClosures
+    const uptimePct = operationalDays > 0 ? Math.round((activeDays + lowDays) / operationalDays * 100) : 0
 
-    return { days, totalDays, activeDays, lowDays, offlineDays, uptimePct }
+    return { days, totalDays, activeDays, lowDays, offlineDays, shabbatDays, holidayDays, maintenanceDays, uptimePct, operationalDays }
   }, [dailyStats, dateRange])
+
+  // Color/style for offline reason
+  const reasonStyle = (reason: string | null) => {
+    switch (reason) {
+      case 'shabbat': return { bg: '#7C5CFC15', border: '#7C5CFC40', text: '#7C5CFC', icon: '✡' }
+      case 'holiday': return { bg: '#C8A96120', border: '#C8A96150', text: '#C8A961', icon: '🕎' }
+      case 'maintenance': return { bg: '#C75B3A15', border: '#C75B3A40', text: '#C75B3A', icon: '🔧' }
+      default: return { bg: '#C75B3A10', border: '#C75B3A30', text: '#C75B3A', icon: '' }
+    }
+  }
 
   return (
     <div className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-1">
         <Calendar size={18} className="text-gold" />
-        <h3 className="text-base font-semibold text-parchment">Uptime & Availability</h3>
+        <h3 className="text-base font-semibold text-parchment">לוח פעילות · Activity Calendar</h3>
         <span className="text-xs font-mono ml-auto" style={{ color: calendarData.uptimePct >= 90 ? '#4A8F6F' : calendarData.uptimePct >= 70 ? '#D4A843' : '#C75B3A' }}>
-          {calendarData.uptimePct}% operational
+          {calendarData.uptimePct}% operational (excl. Shabbat/holidays)
         </span>
       </div>
       <p className="text-xs text-parchment-dim mb-4">
-        Days with log activity vs. gaps. Missing days may indicate system downtime, museum closure, or log collection failure.
+        Days with activity vs. closures. Shabbat and Jewish holidays are expected closures — only non-holiday gaps indicate issues.
       </p>
 
       {/* Summary chips */}
-      <div className="flex gap-3 mb-4 text-xs">
+      <div className="flex flex-wrap gap-2 mb-4 text-xs">
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-[#4A8F6F]" />
           Active ({calendarData.activeDays})
@@ -223,17 +288,38 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
           <span className="w-2.5 h-2.5 rounded-sm bg-[#D4A843]" />
           Low ({calendarData.lowDays})
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-[#C75B3A]/30 border border-[#C75B3A]/50" />
-          Offline ({calendarData.offlineDays})
-        </span>
+        {calendarData.shabbatDays > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#7C5CFC' }} />
+            שבת Shabbat ({calendarData.shabbatDays})
+          </span>
+        )}
+        {calendarData.holidayDays > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-gold" />
+            חג Holiday ({calendarData.holidayDays})
+          </span>
+        )}
+        {calendarData.maintenanceDays > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#C75B3A]/50 border border-[#C75B3A]/50" />
+            Offline ({calendarData.maintenanceDays})
+          </span>
+        )}
       </div>
 
-      {/* Calendar grid */}
+      {/* Calendar grid — Hebrew style (Sun-Sat, right alignment for Hebrew feel) */}
       <div className="grid grid-cols-7 gap-1.5">
-        {/* Day headers */}
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-          <div key={d} className="text-[10px] text-parchment-dim text-center py-1">{d}</div>
+        {/* Day headers — bilingual */}
+        {[
+          { en: 'Sun', he: 'א׳' }, { en: 'Mon', he: 'ב׳' }, { en: 'Tue', he: 'ג׳' },
+          { en: 'Wed', he: 'ד׳' }, { en: 'Thu', he: 'ה׳' }, { en: 'Fri', he: 'ו׳' },
+          { en: 'Sat', he: 'ש׳' },
+        ].map(d => (
+          <div key={d.en} className="text-center py-1">
+            <div className="text-[10px] text-parchment-dim">{d.en}</div>
+            <div className="text-[10px] text-parchment-dim/60">{d.he}</div>
+          </div>
         ))}
         {/* Offset for first day of week */}
         {(() => {
@@ -244,27 +330,56 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
           ))
         })()}
         {/* Day cells */}
-        {calendarData.days.map(day => (
-          <div
-            key={day.date}
-            className={`rounded-md p-1.5 text-center border transition-colors ${
-              day.status === 'offline'
-                ? 'bg-[#C75B3A]/10 border-[#C75B3A]/30'
-                : day.status === 'low'
-                ? 'bg-[#D4A843]/15 border-[#D4A843]/30'
-                : 'bg-[#4A8F6F]/15 border-[#4A8F6F]/30'
-            }`}
-            title={`${day.date} (${day.dayName}): ${day.count} conversations${day.hours ? ` | ${day.hours}` : ''}`}
-          >
-            <div className="text-[11px] font-mono text-parchment">{day.date.split('-')[2]}</div>
-            <div className={`text-[10px] font-mono ${
-              day.status === 'offline' ? 'text-[#C75B3A]' : day.status === 'low' ? 'text-[#D4A843]' : 'text-[#4A8F6F]'
-            }`}>
-              {day.count === 0 ? '—' : day.count}
+        {calendarData.days.map(day => {
+          const isOffline = day.status === 'offline'
+          const rs = isOffline ? reasonStyle(day.reason) : null
+
+          return (
+            <div
+              key={day.date}
+              className={`rounded-md p-1 text-center border transition-colors min-h-[60px] flex flex-col justify-between ${
+                !isOffline
+                  ? day.status === 'low'
+                    ? 'bg-[#D4A843]/15 border-[#D4A843]/30'
+                    : 'bg-[#4A8F6F]/15 border-[#4A8F6F]/30'
+                  : ''
+              }`}
+              style={isOffline && rs ? { backgroundColor: rs.bg, borderColor: rs.border } : undefined}
+              title={`${day.date} (${day.dayName}) · ${day.hebrewDate}${day.holidayEn ? ` · ${day.holidayEn}` : ''}${day.reasonLabelEn && isOffline ? ` · Closed: ${day.reasonLabelEn}` : ''}: ${day.count} conversations${day.hours ? ` | ${day.hours}` : ''}`}
+            >
+              {/* Gregorian day number */}
+              <div className="text-[11px] font-mono text-parchment leading-tight">
+                {day.date.split('-')[2]}
+              </div>
+
+              {/* Hebrew date (compact) */}
+              <div className="text-[8px] text-parchment-dim/70 leading-tight" dir="rtl">
+                {day.hebrewDate.split(' ').slice(0, 2).join(' ')}
+              </div>
+
+              {/* Status / count */}
+              {isOffline ? (
+                <div className="text-[9px] leading-tight mt-0.5" style={{ color: rs?.text }}>
+                  {day.reason === 'shabbat' && <span>שבת</span>}
+                  {day.reason === 'holiday' && <span dir="rtl" className="truncate block">{day.holidayHe?.split(' ').slice(0, 2).join(' ') || 'חג'}</span>}
+                  {day.reason === 'maintenance' && <span>סגור</span>}
+                </div>
+              ) : (
+                <>
+                  <div className={`text-[10px] font-mono font-bold ${
+                    day.status === 'low' ? 'text-[#D4A843]' : 'text-[#4A8F6F]'
+                  }`}>
+                    {day.count}
+                  </div>
+                  {day.holidayHe && (
+                    <div className="text-[7px] text-gold/70 truncate leading-tight" dir="rtl">{day.holidayHe.split(' ').slice(0, 2).join(' ')}</div>
+                  )}
+                </>
+              )}
+              {day.hours && !isOffline && <div className="text-[7px] text-parchment-dim leading-tight">{day.hours}</div>}
             </div>
-            {day.hours && <div className="text-[8px] text-parchment-dim">{day.hours}</div>}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -64,9 +64,11 @@ Both start simultaneously. The opening audio (~3s) plays while the LLM finishes.
 
 | Metric | Formula | Dashboard Label | What It Means | Healthy | Critical |
 |--------|---------|----------------|---------------|---------|----------|
-| **Silence Gap** | T1-T0 | "Silence Gap" | Opening pipeline time. Silence visitor FEELS. | <2s | >5s |
-| **AI Behind Opening** | T2-T1 | "AI Behind Opening" | Remaining LLM time after opening fires. Covered by opening audio. | <3s | >5s |
-| **AI Ready** | T2-T0 | "AI Ready" | Total LLM time. Answer buffered at this point. | <4s | >6s |
+| **STT → Opening** | T1-T0 | "STT → Opening" | Opening pipeline time. First silence visitor FEELS. | <2s | >5s |
+| **Opening Duration** | audio_dur | "Opening Duration" | Filler audio length. AI generates answer behind this. | 1-5s | — |
+| **Opening → Response** | net_gap_ms | "Opening → Response" | Second silence after opening ends. Negative = buffer. | <0 (buffer) | >1s |
+| **AI Think** | T2-T1 | — (detail view) | Remaining LLM time after opening fires. Covered by opening audio. | <3s | >5s |
+| **AI Ready** | T2-T0 | "AI Ready (Total)" | Total LLM time. Answer buffered at this point. | <4s | >6s |
 | **Stream Duration** | T3-T2 | — | Answer delivery time (TTS playback) | varies | >5s |
 
 **The killer metric:** "Seamless Rate" = % where T2-T1 < opening_audio_duration (~3s). If the remaining LLM time fits within the opening audio, zero second gap after opening.
@@ -232,17 +234,18 @@ The dashboard renders in this order in `src/App.tsx`:
 
 1. **Header** — Logo, title, date range, translation toggle
 2. **Navigation** — Cumulative Trends / Day Drill-Down buttons + day selector
-3. **KPI Band** (`src/components/kpi/KPIBand.tsx`) — 7 stat cards with sparklines:
-   - Visitor Questions, Silence Gap (HE/EN), AI Ready (HE/EN), AI Behind Opening (HE/EN + seamless %), System Status, Languages, Problems
+3. **KPI Band** (`src/components/kpi/KPIBand.tsx`) — 8 stat cards with sparklines:
+   - Visitor Questions, STT → Opening (HE/EN), Opening Duration (HE/EN), Opening → Response (seamless %), AI Ready Total (HE/EN), System Status, Languages, Problems
 4. **What Visitors Are Asking** (`src/components/content/ContentIntelligence.tsx`) — 4 tabs:
    - **Visitor Questions** — Faceted conversation feed with filters (topic, language, sensitivity, latency, anomaly, STOP)
    - **Hot Topics** — Regex-based content classification into 20 categories with parent/child support (Religion > Christianity, Islam, Judaism). Bar chart + topic cards with sample questions.
    - **Opening Sentences** — All 66 opening sentences with categories (Statement, Open Questions, Closed Question, Generic, Personal/Current), inline audio playback (HE/EN), usage ranking, per-sentence stats. Data from `public/data/opening_sentences.json`.
    - **Topics & Trends** — Topic distribution charts, daily topic trends
-5. **Response Speed** (`src/components/health/LatencyPanel.tsx`) — Parallel pipeline latency analysis:
-   - Three cards: Silence Gap, AI Behind Opening, AI Ready
-   - Per-language latency breakdown (Hebrew/English/Unknown) with avg, P95, seamless rate
-   - Seamless rate bar with gap details
+5. **Response Speed** (`src/components/health/LatencyPanel.tsx`) — Pipeline latency analysis (Daniel's 3 segments):
+   - Visual pipeline timeline: proportional bar showing STT→Opening, Opening Duration, Gap, Streaming
+   - Three segment cards: STT → Opening, Opening Duration, Opening → Response
+   - Per-language pipeline breakdown (Hebrew/English/Unknown) with avg, P95, seamless rate
+   - Seamless rate bar with gap details + outlier detection
    - Daily trend chart
    - Histogram, scatter plot, SLA compliance, speed by topic/language/hour
    - 10 slowest answers table

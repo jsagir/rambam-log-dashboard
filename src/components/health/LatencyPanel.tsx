@@ -132,38 +132,76 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
     })).filter((d) => d.count > 0)
   }, [conversations])
 
-  // Two-latency model stats (Daniel's request)
-  const twoLatencyStats = useMemo(() => {
+  // Pipeline latency model — Daniel's 3 segments
+  const pipelineStats = useMemo(() => {
+    const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
+    const p95 = (arr: number[]) => {
+      if (arr.length === 0) return 0
+      const s = [...arr].sort((a, b) => a - b)
+      return s[Math.floor(s.length * 0.95)]
+    }
+    const maxVal = (arr: number[]) => arr.length > 0 ? Math.max(...arr) : 0
+    const minVal = (arr: number[]) => arr.length > 0 ? Math.min(...arr) : 0
+
+    // Segment 1: STT → Opening (T1-T0) — first silence
     const openingLats = conversations.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!)
+    // Segment 2: Opening audio duration — filler playing
+    const audioDurs = conversations.filter(c => c.opening_audio_duration_ms != null && c.opening_audio_duration_ms > 0).map(c => c.opening_audio_duration_ms!)
+    // AI think time (T2-T1) — hidden behind opening
     const thinkTimes = conversations.filter(c => c.ai_think_ms && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
+    // Segment 3: Net gap (positive = second silence after opening ends)
+    const netGaps = conversations.filter(c => c.net_gap_ms != null).map(c => c.net_gap_ms!)
+    const secondSilences = netGaps.filter(g => g > 0)
+    // Stream duration (T3-T2) — answer delivery
+    const streamDurs = conversations.filter(c => c.stream_duration_ms != null && c.stream_duration_ms > 0).map(c => c.stream_duration_ms!)
 
     if (openingLats.length === 0 && thinkTimes.length === 0) return null
 
-    const sortedOpening = [...openingLats].sort((a, b) => a - b)
-    const sortedThink = [...thinkTimes].sort((a, b) => a - b)
-    const openingAvg = sortedOpening.length > 0 ? Math.round(sortedOpening.reduce((a, b) => a + b, 0) / sortedOpening.length) : 0
-    const thinkAvg = sortedThink.length > 0 ? Math.round(sortedThink.reduce((a, b) => a + b, 0) / sortedThink.length) : 0
-    const openingP95 = sortedOpening.length > 0 ? sortedOpening[Math.floor(sortedOpening.length * 0.95)] : 0
-    const thinkP95 = sortedThink.length > 0 ? sortedThink[Math.floor(sortedThink.length * 0.95)] : 0
-    const openingMax = sortedOpening.length > 0 ? sortedOpening[sortedOpening.length - 1] : 0
-    const thinkMax = sortedThink.length > 0 ? sortedThink[sortedThink.length - 1] : 0
-    // Use actual per-interaction audio durations for seamless calculation
+    // Seamless rate
     const seamlessCount = conversations.filter(c =>
       c.ai_think_ms != null && c.opening_audio_duration_ms != null &&
       c.ai_think_ms < c.opening_audio_duration_ms
     ).length
     const seamlessRate = thinkTimes.length > 0 ? Math.round(seamlessCount / thinkTimes.length * 100) : 0
 
-    // Net gap stats (negative = buffer, positive = second silence)
-    const netGaps = conversations.filter(c => c.net_gap_ms != null).map(c => c.net_gap_ms!)
-    const gappedCount = netGaps.filter(g => g > 0).length
-    const avgGap = netGaps.length > 0 ? Math.round(netGaps.reduce((a, b) => a + b, 0) / netGaps.length) : 0
-    const worstGap = netGaps.length > 0 ? Math.max(...netGaps) : 0
+    // Total visitor silence = opening_latency + max(0, net_gap)
+    const visitorSilences = conversations
+      .filter(c => c.opening_latency_ms != null && c.opening_latency_ms > 0 && c.net_gap_ms != null)
+      .map(c => c.opening_latency_ms! + Math.max(0, c.net_gap_ms!))
 
-    return { openingAvg, thinkAvg, openingP95, thinkP95, openingMax, thinkMax, seamlessRate, openingCount: sortedOpening.length, thinkCount: sortedThink.length, gappedCount, avgGap, worstGap, totalWithGapData: netGaps.length }
+    // Outlier detection: flag conversations with abnormally high latency (>3 std devs)
+    const allE2e = conversations.filter(c => c.latency_ms > 0).map(c => c.latency_ms)
+    const e2eMean = avg(allE2e)
+    const e2eStd = allE2e.length > 1 ? Math.sqrt(allE2e.reduce((sum, v) => sum + (v - e2eMean) ** 2, 0) / (allE2e.length - 1)) : 0
+    const outlierThreshold = e2eMean + 3 * e2eStd
+    const outlierCount = allE2e.filter(v => v > outlierThreshold).length
+
+    return {
+      // Segment 1: STT → Opening
+      sttAvg: avg(openingLats), sttP95: p95(openingLats), sttMax: maxVal(openingLats),
+      sttCount: openingLats.length,
+      // Segment 2: Opening Duration
+      audioAvg: avg(audioDurs), audioP95: p95(audioDurs), audioMax: maxVal(audioDurs),
+      audioMin: minVal(audioDurs), audioCount: audioDurs.length,
+      // Segment 3: Opening → Response (net gap)
+      gapAvg: avg(secondSilences), gapP95: p95(secondSilences), gapMax: maxVal(secondSilences),
+      gappedCount: secondSilences.length, totalWithGapData: netGaps.length,
+      avgNetGap: avg(netGaps), // includes negatives (buffer)
+      // AI think (T2-T1) — for reference
+      thinkAvg: avg(thinkTimes), thinkP95: p95(thinkTimes), thinkMax: maxVal(thinkTimes),
+      thinkCount: thinkTimes.length,
+      // Stream duration
+      streamAvg: avg(streamDurs), streamCount: streamDurs.length,
+      // Seamless
+      seamlessRate, seamlessCount,
+      // Total silence felt by visitor
+      visitorSilenceAvg: avg(visitorSilences), visitorSilenceP95: p95(visitorSilences),
+      // Outliers
+      outlierThreshold: Math.round(outlierThreshold), outlierCount, e2eStd: Math.round(e2eStd),
+    }
   }, [conversations])
 
-  // Per-language two-latency breakdown
+  // Per-language pipeline breakdown
   const langLatencyBreakdown = useMemo(() => {
     const groups: Record<string, { label: string; convos: Conversation[] }> = {
       'he': { label: 'Hebrew', convos: [] },
@@ -181,6 +219,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
       .map(([key, g]) => {
         const cs = g.convos
         const openings = cs.filter(c => c.opening_latency_ms && c.opening_latency_ms > 0).map(c => c.opening_latency_ms!)
+        const audioDurs = cs.filter(c => c.opening_audio_duration_ms != null && c.opening_audio_duration_ms > 0).map(c => c.opening_audio_duration_ms!)
         const thinks = cs.filter(c => c.ai_think_ms != null && c.ai_think_ms > 0).map(c => c.ai_think_ms!)
         const e2e = cs.filter(c => c.latency_ms > 0).map(c => c.latency_ms)
         const seamlessCount = cs.filter(c =>
@@ -201,14 +240,17 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
           key,
           label: g.label,
           count: cs.length,
-          silenceAvg: avg(openings),
-          silenceP95: p95(openings),
+          sttAvg: avg(openings),
+          sttP95: p95(openings),
+          audioAvg: avg(audioDurs),
+          audioP95: p95(audioDurs),
           thinkAvg: avg(thinks),
           thinkP95: p95(thinks),
           e2eAvg: avg(e2e),
           e2eP95: p95(e2e),
           seamlessRate: thinks.length > 0 ? Math.round(seamlessCount / thinks.length * 100) : 0,
           gappedCount: gapped.length,
+          gapAvg: avg(gapped),
           worstGap: gapped.length > 0 ? Math.max(...gapped) : 0,
         }
       })
@@ -250,139 +292,262 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
     <section className="mb-8">
       <h2 className="font-serif text-2xl text-gold mb-6" title="This section shows how fast Rambam answers visitors. You can see average speed, which topics are slowest, what time of day is worst, and the individual slowest responses.">Response Speed</h2>
 
-      {/* Two-Latency Model — Daniel's request */}
-      {twoLatencyStats && (
+      {/* Pipeline Latency Model — Daniel's 3 segments */}
+      {pipelineStats && (
         <div className="bg-card border border-gold/20 rounded-lg p-5 mb-6">
-          <h3 className="text-base font-semibold text-gold mb-1" title="Two parallel pipelines race from T0: one selects and plays the opening, the other generates the AI answer. The opening audio hides remaining LLM time.">
-            Latency Timeline (Parallel Pipelines)
+          <h3 className="text-base font-semibold text-gold mb-1" title="Three distinct latency segments showing exactly where time is spent in the response pipeline.">
+            Latency Pipeline Breakdown
           </h3>
-          <p className="text-xs text-parchment-dim mb-4">
-            At T0, two pipelines race: <span style={{ color: '#6366F1' }}>opening selection</span> (~1.9s) and <span style={{ color: '#C8A961' }}>LLM generation</span> (~3.5s). Opening audio (~3s) covers remaining LLM time. Answer plays from buffer when opening ends.
+          <p className="text-xs text-parchment-dim mb-5">
+            Three segments from question to answer. Visitor feels silence during segments <span style={{ color: '#6366F1' }}>1</span> and <span style={{ color: '#E8655A' }}>3</span>. Segment <span style={{ color: '#4A8F6F' }}>2</span> plays the opening sentence (filler audio). AI generates the response in parallel behind the opening.
           </p>
 
+          {/* === VISUAL PIPELINE TIMELINE === */}
+          {(() => {
+            const total = pipelineStats.sttAvg + pipelineStats.audioAvg + Math.max(0, pipelineStats.avgNetGap) + pipelineStats.streamAvg
+            if (total === 0) return null
+            const pct = (v: number) => Math.max(2, (v / total) * 100) // min 2% for visibility
+            const seg1 = pct(pipelineStats.sttAvg)
+            const seg2 = pct(pipelineStats.audioAvg)
+            const seg3 = pct(Math.max(0, pipelineStats.avgNetGap))
+            const seg4 = pct(pipelineStats.streamAvg)
+            // Normalize to 100
+            const sumPct = seg1 + seg2 + seg3 + seg4
+            const norm = (v: number) => (v / sumPct) * 100
+
+            return (
+              <div className="mb-6">
+                {/* Timeline markers */}
+                <div className="flex text-[10px] font-mono text-parchment-dim mb-1">
+                  <div style={{ width: `${norm(seg1)}%` }} className="text-left">T0</div>
+                  <div style={{ width: `${norm(seg2)}%` }} className="text-left">T1</div>
+                  <div style={{ width: `${norm(seg3)}%` }} className="text-left">{pipelineStats.avgNetGap > 0 ? '' : ''}</div>
+                  <div style={{ width: `${norm(seg4)}%` }} className="flex justify-between">
+                    <span>T2</span>
+                    <span>T3</span>
+                  </div>
+                </div>
+
+                {/* Pipeline bar */}
+                <div className="flex h-10 rounded-lg overflow-hidden border border-border/50">
+                  {/* Segment 1: STT → Opening (silence) */}
+                  <div
+                    style={{ width: `${norm(seg1)}%`, backgroundColor: '#6366F1' }}
+                    className="flex items-center justify-center relative group"
+                    title={`STT → Opening: ${formatLatency(pipelineStats.sttAvg)} avg`}
+                  >
+                    <span className="text-[10px] font-mono font-bold text-white drop-shadow-sm">
+                      {formatLatency(pipelineStats.sttAvg)}
+                    </span>
+                  </div>
+                  {/* Segment 2: Opening playing (audio filler) */}
+                  <div
+                    style={{ width: `${norm(seg2)}%`, backgroundColor: '#4A8F6F' }}
+                    className="flex items-center justify-center relative"
+                    title={`Opening Duration: ${formatLatency(pipelineStats.audioAvg)} avg`}
+                  >
+                    <span className="text-[10px] font-mono font-bold text-white drop-shadow-sm">
+                      {formatLatency(pipelineStats.audioAvg)}
+                    </span>
+                  </div>
+                  {/* Segment 3: Gap after opening (second silence, if any) */}
+                  {pipelineStats.avgNetGap > 0 && (
+                    <div
+                      style={{ width: `${norm(seg3)}%`, backgroundColor: '#E8655A' }}
+                      className="flex items-center justify-center relative"
+                      title={`Opening → Response gap: ${formatLatency(Math.max(0, pipelineStats.avgNetGap))} avg`}
+                    >
+                      <span className="text-[10px] font-mono font-bold text-white drop-shadow-sm">
+                        {formatLatency(Math.max(0, pipelineStats.avgNetGap))}
+                      </span>
+                    </div>
+                  )}
+                  {/* Segment 4: Response streaming */}
+                  <div
+                    style={{ width: `${norm(seg4)}%`, backgroundColor: '#C8A961' }}
+                    className="flex items-center justify-center relative"
+                    title={`Response streaming: ${formatLatency(pipelineStats.streamAvg)} avg`}
+                  >
+                    <span className="text-[10px] font-mono font-bold text-white drop-shadow-sm">
+                      {formatLatency(pipelineStats.streamAvg)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-[11px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#6366F1' }} />
+                    <span className="text-parchment-dim">STT → Opening</span>
+                    <span className="font-mono font-semibold text-parchment">(silence)</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#4A8F6F' }} />
+                    <span className="text-parchment-dim">Opening Duration</span>
+                    <span className="font-mono font-semibold text-parchment">(filler audio)</span>
+                  </span>
+                  {pipelineStats.avgNetGap > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#E8655A' }} />
+                      <span className="text-parchment-dim">Opening → Response</span>
+                      <span className="font-mono font-semibold text-parchment">(silence)</span>
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#C8A961' }} />
+                    <span className="text-parchment-dim">Response Streaming</span>
+                    <span className="font-mono font-semibold text-parchment">(answer plays)</span>
+                  </span>
+                </div>
+
+                {/* Visitor silence summary */}
+                <div className="mt-3 flex items-center gap-3 bg-background/50 rounded px-3 py-2 border border-border/30">
+                  <span className="text-[11px] text-parchment-dim">Total visitor silence:</span>
+                  <span className="font-mono font-bold text-sm" style={{ color: getLatencyColor(pipelineStats.visitorSilenceAvg) }}>
+                    {formatLatency(pipelineStats.visitorSilenceAvg)} avg
+                  </span>
+                  <span className="text-[10px] text-parchment-dim">(STT→Opening + gap after opening, if any)</span>
+                  {pipelineStats.outlierCount > 0 && (
+                    <span className="ml-auto text-[10px] px-2 py-0.5 rounded bg-critical/10 border border-critical/20" style={{ color: '#E8655A' }}>
+                      {pipelineStats.outlierCount} outlier{pipelineStats.outlierCount > 1 ? 's' : ''} (&gt;{formatLatency(pipelineStats.outlierThreshold)})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* === DANIEL'S 3 SEGMENT CARDS === */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {/* Silence Gap card */}
-            <div className="bg-background rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#6366F1' }} />
-                <span className="text-sm font-semibold text-parchment">Silence Gap (T1-T0)</span>
+            {/* Segment 1: STT → Opening Sentence */}
+            <div className="bg-background rounded-lg p-4 border-l-[3px] border border-border" style={{ borderLeftColor: '#6366F1' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: '#6366F120', color: '#6366F1' }}>1</span>
+                <span className="text-sm font-semibold text-parchment">STT → Opening Sentence</span>
               </div>
               <p className="text-[11px] text-parchment-dim mb-3">
-                Opening pipeline time: classify question → select opening → fire audio. The silence visitor FEELS before hearing anything.
+                Silence visitor feels after speaking. System processes speech, classifies, selects opening, fires audio.
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <div className="text-[10px] text-parchment-dim uppercase">Average</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingAvg) }}>
-                    {formatLatency(twoLatencyStats.openingAvg)}
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(pipelineStats.sttAvg) }}>
+                    {formatLatency(pipelineStats.sttAvg)}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-parchment-dim uppercase">P95</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingP95) }}>
-                    {formatLatency(twoLatencyStats.openingP95)}
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(pipelineStats.sttP95) }}>
+                    {formatLatency(pipelineStats.sttP95)}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingMax) }}>
-                    {formatLatency(twoLatencyStats.openingMax)}
+                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(pipelineStats.sttMax) }}>
+                    {formatLatency(pipelineStats.sttMax)}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* AI Behind Opening card */}
-            <div className="bg-background rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#C8A961' }} />
-                <span className="text-sm font-semibold text-parchment">AI Behind Opening (T2-T1)</span>
+            {/* Segment 2: Opening Sentence Duration */}
+            <div className="bg-background rounded-lg p-4 border-l-[3px] border border-border" style={{ borderLeftColor: '#4A8F6F' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: '#4A8F6F20', color: '#4A8F6F' }}>2</span>
+                <span className="text-sm font-semibold text-parchment">Opening Sentence Duration</span>
               </div>
               <p className="text-[11px] text-parchment-dim mb-3">
-                Remaining LLM time after opening fires. Opening audio (~3s) plays over this. If AI finishes before audio ends → seamless.
+                Filler audio length. Visitor hears opening while AI generates the real answer behind the scenes.
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <div className="text-[10px] text-parchment-dim uppercase">Average</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkAvg) }}>
-                    {formatLatency(twoLatencyStats.thinkAvg)}
+                  <div className="text-lg font-bold font-mono" style={{ color: '#4A8F6F' }}>
+                    {formatLatency(pipelineStats.audioAvg)}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-parchment-dim uppercase">P95</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkP95) }}>
-                    {formatLatency(twoLatencyStats.thinkP95)}
+                  <div className="text-lg font-bold font-mono text-parchment">
+                    {formatLatency(pipelineStats.audioP95)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.thinkMax) }}>
-                    {formatLatency(twoLatencyStats.thinkMax)}
+                  <div className="text-[10px] text-parchment-dim uppercase">Range</div>
+                  <div className="text-sm font-mono text-parchment-dim">
+                    {formatLatency(pipelineStats.audioMin)}–{formatLatency(pipelineStats.audioMax)}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* AI Ready (T2-T0) card */}
-            <div className="bg-background rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#E0D5C0' }} />
-                <span className="text-sm font-semibold text-parchment">AI Ready (T2-T0)</span>
+            {/* Segment 3: Opening → Generated Response */}
+            <div className="bg-background rounded-lg p-4 border-l-[3px] border border-border" style={{ borderLeftColor: pipelineStats.gappedCount > 0 ? '#E8655A' : '#4A8F6F' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: '#E8655A20', color: '#E8655A' }}>3</span>
+                <span className="text-sm font-semibold text-parchment">Opening → Response</span>
               </div>
               <p className="text-[11px] text-parchment-dim mb-3">
-                Total LLM pipeline time from question end. Answer buffered and waiting. Visitor hears it after opening audio finishes.
+                Second silence after opening ends. Negative = AI was ready early (buffered). Positive = visitor waited again.
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
-                  <div className="text-[10px] text-parchment-dim uppercase">Average</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingAvg + twoLatencyStats.thinkAvg) }}>
-                    {formatLatency(twoLatencyStats.openingAvg + twoLatencyStats.thinkAvg)}
+                  <div className="text-[10px] text-parchment-dim uppercase">Avg Gap</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: pipelineStats.avgNetGap <= 0 ? '#4A8F6F' : getLatencyColor(pipelineStats.avgNetGap) }}>
+                    {pipelineStats.avgNetGap <= 0 ? `−${formatLatency(Math.abs(pipelineStats.avgNetGap))}` : formatLatency(pipelineStats.avgNetGap)}
+                  </div>
+                  <div className="text-[9px] text-parchment-dim mt-0.5">
+                    {pipelineStats.avgNetGap <= 0 ? 'buffer' : 'silence'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-parchment-dim uppercase">P95</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingP95 + twoLatencyStats.thinkP95) }}>
-                    {formatLatency(twoLatencyStats.openingP95 + twoLatencyStats.thinkP95)}
+                  <div className="text-[10px] text-parchment-dim uppercase">With Gap</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: pipelineStats.gappedCount > 0 ? '#E8655A' : '#4A8F6F' }}>
+                    {pipelineStats.gappedCount}
+                  </div>
+                  <div className="text-[9px] text-parchment-dim mt-0.5">
+                    of {pipelineStats.totalWithGapData}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-parchment-dim uppercase">Worst</div>
-                  <div className="text-lg font-bold font-mono" style={{ color: getLatencyColor(twoLatencyStats.openingMax + twoLatencyStats.thinkMax) }}>
-                    {formatLatency(twoLatencyStats.openingMax + twoLatencyStats.thinkMax)}
+                  <div className="text-[10px] text-parchment-dim uppercase">Worst Gap</div>
+                  <div className="text-lg font-bold font-mono" style={{ color: pipelineStats.gapMax > 0 ? '#E8655A' : '#4A8F6F' }}>
+                    {pipelineStats.gapMax > 0 ? formatLatency(pipelineStats.gapMax) : '—'}
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Seamless rate bar + gap details */}
+          {/* Seamless rate bar */}
           <div className="mb-4">
             <div className="flex items-center justify-between text-xs text-parchment-dim mb-1">
-              <span>Seamless rate (AI ready before opening audio ends — per actual audio_id duration)</span>
-              <span className="font-bold" style={{ color: twoLatencyStats.seamlessRate >= 90 ? '#4A8F6F' : twoLatencyStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A' }}>
-                {twoLatencyStats.seamlessRate}%
+              <span>Seamless rate — AI response ready before opening audio ends (no second silence)</span>
+              <span className="font-bold" style={{ color: pipelineStats.seamlessRate >= 90 ? '#4A8F6F' : pipelineStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A' }}>
+                {pipelineStats.seamlessRate}%
               </span>
             </div>
             <div className="h-3 rounded bg-background overflow-hidden">
               <div
                 className="h-full rounded transition-all"
                 style={{
-                  width: `${twoLatencyStats.seamlessRate}%`,
-                  backgroundColor: twoLatencyStats.seamlessRate >= 90 ? '#4A8F6F' : twoLatencyStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A',
+                  width: `${pipelineStats.seamlessRate}%`,
+                  backgroundColor: pipelineStats.seamlessRate >= 90 ? '#4A8F6F' : pipelineStats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A',
                 }}
               />
             </div>
-            {twoLatencyStats.gappedCount > 0 && (
-              <div className="mt-2 text-xs text-parchment-dim">
-                <span style={{ color: '#C75B3A' }}>{twoLatencyStats.gappedCount}</span> conversations had a second silence gap after opening ended (worst: {formatLatency(twoLatencyStats.worstGap)})
-              </div>
-            )}
+            <div className="mt-1.5 flex items-center gap-4 text-[11px] text-parchment-dim">
+              <span>{pipelineStats.seamlessCount} of {pipelineStats.thinkCount} seamless</span>
+              {pipelineStats.gappedCount > 0 && (
+                <span><span style={{ color: '#E8655A' }}>{pipelineStats.gappedCount}</span> had second silence (avg {formatLatency(pipelineStats.gapAvg)}, worst {formatLatency(pipelineStats.gapMax)})</span>
+              )}
+            </div>
           </div>
 
-          {/* Per-language latency breakdown */}
+          {/* Per-language pipeline breakdown */}
           {langLatencyBreakdown.length > 1 && (
             <div className="mb-4">
-              <div className="text-xs text-parchment-dim mb-3 font-semibold uppercase tracking-wide">Latency by Language</div>
+              <div className="text-xs text-parchment-dim mb-3 font-semibold uppercase tracking-wide">Pipeline by Language</div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {langLatencyBreakdown.map(lang => (
                   <div key={lang.key} className="bg-background rounded-lg p-4 border border-border">
@@ -393,18 +558,28 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                     <div className="space-y-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-parchment-dim flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#6366F1' }} />
-                          Silence Gap
+                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#6366F1' }} />
+                          STT → Opening
                         </span>
                         <div className="flex gap-3">
-                          <span className="font-mono" style={{ color: getLatencyColor(lang.silenceAvg) }}>{formatLatency(lang.silenceAvg)}</span>
-                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.silenceP95)}</span>
+                          <span className="font-mono" style={{ color: getLatencyColor(lang.sttAvg) }}>{formatLatency(lang.sttAvg)}</span>
+                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.sttP95)}</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-parchment-dim flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#C8A961' }} />
-                          AI Behind Opening
+                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#4A8F6F' }} />
+                          Opening Duration
+                        </span>
+                        <div className="flex gap-3">
+                          <span className="font-mono" style={{ color: '#4A8F6F' }}>{formatLatency(lang.audioAvg)}</span>
+                          <span className="font-mono text-parchment-dim" title="P95">p95: {formatLatency(lang.audioP95)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-parchment-dim flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#C8A961' }} />
+                          AI Think (T2-T1)
                         </span>
                         <div className="flex gap-3">
                           <span className="font-mono" style={{ color: getLatencyColor(lang.thinkAvg) }}>{formatLatency(lang.thinkAvg)}</span>
@@ -413,7 +588,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-parchment-dim flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#E0D5C0' }} />
+                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: '#E0D5C0' }} />
                           E2E Total
                         </span>
                         <div className="flex gap-3">
@@ -439,7 +614,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
                         </div>
                         {lang.gappedCount > 0 && (
                           <div className="text-[10px] text-parchment-dim mt-1">
-                            <span style={{ color: '#C75B3A' }}>{lang.gappedCount}</span> gaps (worst: {formatLatency(lang.worstGap)})
+                            <span style={{ color: '#E8655A' }}>{lang.gappedCount}</span> gaps (avg {formatLatency(lang.gapAvg)}, worst {formatLatency(lang.worstGap)})
                           </div>
                         )}
                       </div>
@@ -450,17 +625,17 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
             </div>
           )}
 
-          {/* Daily two-latency trend */}
+          {/* Daily pipeline trend */}
           {dailyTwoLatency.length > 1 && (
             <div>
-              <div className="text-xs text-parchment-dim mb-2">Daily Trend: Silence Gap (T1-T0) vs AI Behind Opening (T2-T1)</div>
+              <div className="text-xs text-parchment-dim mb-2">Daily Trend: STT → Opening vs AI Think Time</div>
               <ResponsiveContainer width="100%" height={140}>
                 <LineChart data={dailyTwoLatency}>
                   <XAxis dataKey="date" stroke="#D0C8B8" fontSize={11} />
                   <YAxis stroke="#D0C8B8" fontSize={11} />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <ReferenceLine y={3000} stroke="#C75B3A" strokeDasharray="2 4" />
-                  <Line type="monotone" dataKey="opening" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} name="Silence Gap" />
+                  <Line type="monotone" dataKey="opening" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} name="STT → Opening" />
                   <Line type="monotone" dataKey="think" stroke="#C8A961" strokeWidth={2} dot={{ r: 3 }} name="AI Think Time" />
                 </LineChart>
               </ResponsiveContainer>
@@ -640,44 +815,65 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
       {/* Slowest conversations table */}
       <div className="bg-card border border-border rounded-lg p-4 mt-6">
-        <h3 className="text-base font-semibold text-parchment mb-4" title="These are the 10 questions where visitors waited the longest. Look for patterns: same topic, same time of day, or same language might reveal the cause.">10 Slowest Answers</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-parchment" title="These are the 10 questions where visitors waited the longest. Look for patterns: same topic, same time of day, or same language might reveal the cause.">10 Slowest Answers</h3>
+          {pipelineStats && pipelineStats.outlierCount > 0 && (
+            <span className="text-[11px] px-2 py-1 rounded border" style={{ color: '#E8655A', borderColor: '#E8655A33', backgroundColor: '#E8655A08' }}>
+              Outlier threshold: &gt;{formatLatency(pipelineStats.outlierThreshold)} (3 std devs above mean)
+            </span>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-parchment-dim border-b border-border">
-                <th className="pb-2 pr-3">#</th>
-                <th className="pb-2 pr-3">Date</th>
-                <th className="pb-2 pr-3">Time</th>
-                <th className="pb-2 pr-3" title="Silence the visitor feels before hearing anything (STT → opening)" style={{ color: '#6366F1' }}>Silence</th>
-                <th className="pb-2 pr-3" title="LLM generation time after opening fires (hidden behind opening audio)" style={{ color: '#C8A961' }}>AI Think</th>
-                <th className="pb-2 pr-3" title="Total end-to-end response time">Total</th>
-                <th className="pb-2 pr-3">Topic</th>
+                <th className="pb-2 pr-2">#</th>
+                <th className="pb-2 pr-2">Date</th>
+                <th className="pb-2 pr-2">Time</th>
+                <th className="pb-2 pr-2" title="STT → Opening: first silence" style={{ color: '#6366F1' }}>STT→Open</th>
+                <th className="pb-2 pr-2" title="Opening sentence audio duration" style={{ color: '#4A8F6F' }}>Opening Dur.</th>
+                <th className="pb-2 pr-2" title="AI generation time hidden behind opening" style={{ color: '#C8A961' }}>AI Think</th>
+                <th className="pb-2 pr-2" title="Second silence after opening ends (negative = AI was ready early)" style={{ color: '#E8655A' }}>Gap</th>
+                <th className="pb-2 pr-2" title="Total end-to-end response time">Total</th>
+                <th className="pb-2 pr-2">Topic</th>
                 <th className="pb-2">Question</th>
               </tr>
             </thead>
             <tbody>
-              {slowest.map((c, i) => (
-                <tr key={c.id} className="border-b border-border/30 hover:bg-card-hover/50">
-                  <td className="py-2 pr-3 text-parchment-dim">{i + 1}</td>
-                  <td className="py-2 pr-3 font-mono text-parchment-dim">{c.date}</td>
-                  <td className="py-2 pr-3 font-mono text-parchment-dim">{extractTime(c.time)}</td>
-                  <td className="py-2 pr-3 font-mono text-xs" style={{ color: '#6366F1' }}>
-                    {c.opening_latency_ms ? formatLatency(c.opening_latency_ms) : '—'}
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-xs" style={{ color: '#C8A961' }}>
-                    {c.ai_think_ms ? formatLatency(c.ai_think_ms) : '—'}
-                  </td>
-                  <td className="py-2 pr-3 font-mono font-bold" style={{ color: getLatencyColor(c.latency_ms) }}>
-                    {formatLatency(c.latency_ms)}
-                  </td>
-                  <td className="py-2 pr-3">
-                    <span className="px-1.5 py-0.5 rounded text-xs" style={{ backgroundColor: (TOPIC_COLORS[c.topic] || '#6B7280') + '22', color: TOPIC_COLORS[c.topic] || '#6B7280' }}>
-                      {c.topic}
-                    </span>
-                  </td>
-                  <td className="py-2 text-parchment-dim truncate max-w-[250px]" dir="auto">{c.question}</td>
-                </tr>
-              ))}
+              {slowest.map((c, i) => {
+                const isOutlier = pipelineStats && c.latency_ms > pipelineStats.outlierThreshold
+                return (
+                  <tr key={c.id} className={`border-b border-border/30 hover:bg-card-hover/50 ${isOutlier ? 'bg-critical/5' : ''}`}>
+                    <td className="py-2 pr-2 text-parchment-dim">
+                      {i + 1}
+                      {isOutlier && <span className="ml-1 text-[9px]" style={{ color: '#E8655A' }} title="Statistical outlier">*</span>}
+                    </td>
+                    <td className="py-2 pr-2 font-mono text-parchment-dim text-xs">{c.date}</td>
+                    <td className="py-2 pr-2 font-mono text-parchment-dim text-xs">{extractTime(c.time)}</td>
+                    <td className="py-2 pr-2 font-mono text-xs" style={{ color: '#6366F1' }}>
+                      {c.opening_latency_ms ? formatLatency(c.opening_latency_ms) : '—'}
+                    </td>
+                    <td className="py-2 pr-2 font-mono text-xs" style={{ color: '#4A8F6F' }}>
+                      {c.opening_audio_duration_ms ? formatLatency(c.opening_audio_duration_ms) : '—'}
+                    </td>
+                    <td className="py-2 pr-2 font-mono text-xs" style={{ color: '#C8A961' }}>
+                      {c.ai_think_ms ? formatLatency(c.ai_think_ms) : '—'}
+                    </td>
+                    <td className="py-2 pr-2 font-mono text-xs" style={{ color: c.net_gap_ms != null && c.net_gap_ms > 0 ? '#E8655A' : '#4A8F6F' }}>
+                      {c.net_gap_ms != null ? (c.net_gap_ms <= 0 ? `−${formatLatency(Math.abs(c.net_gap_ms))}` : formatLatency(c.net_gap_ms)) : '—'}
+                    </td>
+                    <td className="py-2 pr-2 font-mono font-bold" style={{ color: getLatencyColor(c.latency_ms) }}>
+                      {formatLatency(c.latency_ms)}
+                    </td>
+                    <td className="py-2 pr-2">
+                      <span className="px-1.5 py-0.5 rounded text-xs" style={{ backgroundColor: (TOPIC_COLORS[c.topic] || '#6B7280') + '22', color: TOPIC_COLORS[c.topic] || '#6B7280' }}>
+                        {c.topic}
+                      </span>
+                    </td>
+                    <td className="py-2 text-parchment-dim truncate max-w-[200px]" dir="auto">{c.question}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
