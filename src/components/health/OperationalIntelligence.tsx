@@ -269,7 +269,7 @@ function UptimeCalendar({ dailyStats, dateRange }: { dailyStats: DailyStat[]; da
     <div className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-1">
         <Calendar size={18} className="text-gold" />
-        <h3 className="text-base font-semibold text-parchment">לוח פעילות · Activity Calendar</h3>
+        <h3 className="text-base font-semibold text-parchment" data-tour="hebrew-calendar">לוח פעילות · Activity Calendar</h3>
         <span className="text-xs font-mono ml-auto" style={{ color: calendarData.uptimePct >= 90 ? '#4A8F6F' : calendarData.uptimePct >= 70 ? '#D4A843' : '#C75B3A' }}>
           {calendarData.uptimePct}% operational (excl. Shabbat/holidays)
         </span>

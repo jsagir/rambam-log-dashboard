@@ -36,6 +36,7 @@ export function AskPanel({ conversations }: AskPanelProps) {
     return (
       <button
         onClick={() => setIsOpen(true)}
+        data-tour="ask-panel"
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{
           background: 'linear-gradient(135deg, #C8A961 0%, #A88B3E 100%)',

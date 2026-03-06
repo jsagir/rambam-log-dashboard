@@ -25,7 +25,7 @@ export function ContentIntelligence({
   const [activeTab, setActiveTab] = useState<Tab>('feed')
 
   return (
-    <section className="mb-8">
+    <section className="mb-8" data-tour="content-tabs">
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         <h2 className="font-serif text-2xl text-gold" title="This shows what visitors are asking Rambam about. Browse individual conversations or see topic trends in the charts.">What Visitors Are Asking</h2>
         <div className="flex bg-card border border-border rounded-md overflow-hidden text-base">

@@ -7,6 +7,7 @@ import { LatencyPanel } from '@/components/health/LatencyPanel'
 import { AskPanel } from '@/components/content/AskPanel'
 import { TalkWithRambam } from '@/components/content/TalkWithRambam'
 import { OperationalIntelligence } from '@/components/health/OperationalIntelligence'
+import { GuidedTour } from '@/components/GuidedTour'
 import { Loader2, TrendingUp, CalendarSearch, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ViewMode = 'cumulative' | 'drilldown'
@@ -255,6 +256,9 @@ export function App() {
 
       {/* Sticky Ask the Data panel — always available */}
       <AskPanel conversations={data.conversations} />
+
+      {/* Guided tour */}
+      <GuidedTour />
     </div>
   )
 }

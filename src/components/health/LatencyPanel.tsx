@@ -294,7 +294,7 @@ export function LatencyPanel({ conversations, dailyStats }: LatencyPanelProps) {
 
       {/* Pipeline Latency Model — Daniel's 3 segments */}
       {pipelineStats && (
-        <div className="bg-card border border-gold/20 rounded-lg p-5 mb-6">
+        <div className="bg-card border border-gold/20 rounded-lg p-5 mb-6" data-tour="latency-pipeline">
           <h3 className="text-base font-semibold text-gold mb-1" title="Three distinct latency segments showing exactly where time is spent in the response pipeline.">
             Latency Pipeline Breakdown
           </h3>

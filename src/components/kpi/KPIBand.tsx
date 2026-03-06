@@ -124,7 +124,7 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
   const totalSpark = data.daily_stats.map((d) => (d.avg_opening_latency_ms || 0) + (d.avg_ai_think_ms || 0))
 
   return (
-    <section className="mb-8">
+    <section className="mb-8" data-tour="kpi-band">
       <div className="flex gap-3 flex-wrap">
         <StatCard
           label="Visitor Questions"
@@ -134,32 +134,38 @@ export function KPIBand({ data, selectedDate }: KPIBandProps) {
           subtitle={`Over ${data.meta.total_days} days`}
           tooltip="This shows how many questions visitors asked Rambam. The small line chart shows the daily trend — peaks often mean group tours came through."
         />
-        <StatCard
-          label="STT → Opening"
-          value={formatLatency(stats.avgOpening)}
-          icon={<Clock size={18} />}
-          sparkData={openingSpark}
-          sparkColor={stats.avgOpening > 3000 ? '#C75B3A' : stats.avgOpening > 2000 ? '#D4A843' : '#4A8F6F'}
-          subtitle={`HE ${formatLatency(stats.heOpening)} · EN ${formatLatency(stats.enOpening)}`}
-          tooltip="Segment 1: Silence the visitor FEELS after finishing their question, before Rambam starts speaking. System processes STT, classifies, selects opening sentence, fires audio. Under 2s ideal, over 3s uncomfortable."
-        />
-        <StatCard
-          label="Opening Duration"
-          value={formatLatency(stats.avgAudioDur)}
-          icon={<Clock size={18} />}
-          sparkColor="#4A8F6F"
-          subtitle={`HE ${formatLatency(stats.heAudioDur)} · EN ${formatLatency(stats.enAudioDur)}`}
-          tooltip="Segment 2: How long the opening sentence audio plays. This is filler — the visitor hears it while the AI generates the real answer behind the scenes. Longer openings give the AI more time to finish."
-        />
-        <StatCard
-          label="Opening → Response"
-          value={`${stats.seamlessRate}% seamless`}
-          icon={<Clock size={18} />}
-          sparkData={thinkSpark}
-          sparkColor={stats.seamlessRate >= 90 ? '#4A8F6F' : stats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A'}
-          subtitle={stats.gappedCount > 0 ? `${stats.gappedCount} had second silence` : 'No second silence gaps'}
-          tooltip="Segment 3: After the opening sentence ends, is the AI response ready? Seamless = no gap. If the AI wasn't ready, the visitor experiences a second silence gap."
-        />
+        <div data-tour="kpi-stt">
+          <StatCard
+            label="STT → Opening"
+            value={formatLatency(stats.avgOpening)}
+            icon={<Clock size={18} />}
+            sparkData={openingSpark}
+            sparkColor={stats.avgOpening > 3000 ? '#C75B3A' : stats.avgOpening > 2000 ? '#D4A843' : '#4A8F6F'}
+            subtitle={`HE ${formatLatency(stats.heOpening)} · EN ${formatLatency(stats.enOpening)}`}
+            tooltip="Segment 1: Silence the visitor FEELS after finishing their question, before Rambam starts speaking. System processes STT, classifies, selects opening sentence, fires audio. Under 2s ideal, over 3s uncomfortable."
+          />
+        </div>
+        <div data-tour="kpi-audio">
+          <StatCard
+            label="Opening Duration"
+            value={formatLatency(stats.avgAudioDur)}
+            icon={<Clock size={18} />}
+            sparkColor="#4A8F6F"
+            subtitle={`HE ${formatLatency(stats.heAudioDur)} · EN ${formatLatency(stats.enAudioDur)}`}
+            tooltip="Segment 2: How long the opening sentence audio plays. This is filler — the visitor hears it while the AI generates the real answer behind the scenes. Longer openings give the AI more time to finish."
+          />
+        </div>
+        <div data-tour="kpi-seamless">
+          <StatCard
+            label="Opening → Response"
+            value={`${stats.seamlessRate}% seamless`}
+            icon={<Clock size={18} />}
+            sparkData={thinkSpark}
+            sparkColor={stats.seamlessRate >= 90 ? '#4A8F6F' : stats.seamlessRate >= 70 ? '#D4A843' : '#C75B3A'}
+            subtitle={stats.gappedCount > 0 ? `${stats.gappedCount} had second silence` : 'No second silence gaps'}
+            tooltip="Segment 3: After the opening sentence ends, is the AI response ready? Seamless = no gap. If the AI wasn't ready, the visitor experiences a second silence gap."
+          />
+        </div>
         <StatCard
           label="AI Ready (Total)"
           value={formatLatency(stats.totalToAnswer)}
